@@ -183,14 +183,14 @@ def plot_seq_depth_results(days_btwn, sample_size):
     for i in range(50):
         for seq_depth in depths:
 
-            truth_filename = "tmp/clv-sim-set-{}-{}-{}-{}.pkl".format(seq_depth, days_btwn, ss, i)
+            truth_filename = "tmp_sim/clv-sim-set-{}-{}-{}-{}.pkl".format(seq_depth, days_btwn, ss, i)
             try:
                 train_counts, train_rel_abn, train_t_pts, hold_out_counts, hold_out_rel_abn, hold_out_t_pts, A, g, denom = \
                     pkl.load(open(truth_filename, "rb"))
             except FileNotFoundError:
                 print("missing file", truth_filename)
 
-            clv_en_filename = "tmp/clv-sim-en-{}-{}-{}-{}.pkl".format(seq_depth, days_btwn, ss, i)
+            clv_en_filename = "tmp_sim/clv-sim-en-{}-{}-{}-{}.pkl".format(seq_depth, days_btwn, ss, i)
             try:
                 A_clv_en, g_clv_en, pred_clv_en = pkl.load(open(clv_en_filename, "rb"))
                 rmse_A.append(["cLV Elastic Net", seq_depth, compute_rmse_params(A, A_clv_en)])
@@ -250,14 +250,14 @@ def plot_density_results(ax, seq_depth, sample_size, legend=False):
     for i in range(50):
         for days_btwn in days:
 
-            truth_filename = "tmp/clv-sim-set-{}-{}-{}-{}.pkl".format(seq_depth, days_btwn, ss, i)
+            truth_filename = "tmp_sim/clv-sim-set-{}-{}-{}-{}.pkl".format(seq_depth, days_btwn, ss, i)
             try:
                 train_counts, train_rel_abn, train_t_pts, hold_out_counts, hold_out_rel_abn, hold_out_t_pts, A, g, denom = \
                     pkl.load(open(truth_filename, "rb"))
             except FileNotFoundError:
                 print("missing file", truth_filename)
 
-            clv_en_filename = "tmp/clv-sim-en-{}-{}-{}-{}.pkl".format(seq_depth, days_btwn, ss, i)
+            clv_en_filename = "tmp_sim/clv-sim-en-{}-{}-{}-{}.pkl".format(seq_depth, days_btwn, ss, i)
             try:
                 A_clv_en, g_clv_en, pred_clv_en = pkl.load(open(clv_en_filename, "rb"))
                 rmse_A.append(["cLV Elastic Net", days_btwn, compute_rmse_params(A, A_clv_en)])
