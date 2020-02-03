@@ -1,148 +1,57 @@
+import matplotlib
+matplotlib.use('agg')
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import pickle as pkl
+import sys
 
 from scipy.special import logsumexp
 from wilcoxon_exact import wilcoxon_exact
 
-from optimizers import elastic_net, elastic_net_linear
+from fit_models import fit_clv, fit_glv, fit_linear_alr, fit_linear_rel_abun
+from plotting import plot_bar
 
-from bucci_cross_validation import *
 
-
-def compute_errors(Y, U, T, A, g, B):
+def compute_errors(Y, Y_pred):
     def compute_square_errors(y, y_pred):
         err = []
         for yt, ypt in zip(y[1:], y_pred[1:]):
-            err.append(compute_square_error(yt, ypt))
+            err.append(np.square(yt - ypt).sum())
         return err
     err = []
-    for y, u, t in zip(Y, U, T):
-        y_pred = predict(y[0], u, t, A, g, B)
-        err += compute_square_errors(y, y_pred)
-    return np.array(err)
-
-
-def compute_errors_linear(Y, U, T, A, g, B):
-    def compute_square_errors(y, y_pred):
-        err = []
-        for yt, ypt in zip(y[1:], y_pred[1:]):
-            err.append(compute_square_error(yt, ypt))
-        return err
-    err = []
-    for y, u, t in zip(Y, U, T):
-        y_pred = predict_linear(y[0], u, t, A, g, B)
-        err += compute_square_errors(y, y_pred)
-    return np.array(err)
-
-
-def compute_errors_rel_abun(Y, U, T, A, g, B):
-    def compute_square_errors(y, y_pred):
-        err = []
-        for yt, ypt in zip(y[1:], y_pred[1:]):
-            err.append(compute_square_error(yt, ypt))
-        return err
-    err = []
-    for y, u, t in zip(Y, U, T):
-        y_pred = predict_rel_abun(y[0], u, t, A, g, B)
+    for y, y_pred in zip(Y, Y_pred):
         err += compute_square_errors(y, y_pred)
     return np.array(err)
 
 
 def compute_baseline_errors(Y):
-    def compute_square_errors(y, y_pred):
-        err = []
-        for yt in y[1:]:
-            err.append(compute_square_error(yt, y_pred))
-        return err
-    err = []
+    Y_pred = []
     for y in Y:
-        y_pred = y[0] / y[0].sum()
-        err += compute_square_errors(y, y_pred)
-    return np.array(err)
+        p0 = y[0] / y[0].sum()
+        y_pred = np.array([p0 for t in range(y.shape[0])])
+        Y_pred.append(y_pred)
+    return compute_errors(Y, Y_pred)
 
 
-def compute_errors_glv(Y_abs, U, T, A, g, B):
-    def compute_square_errors(y, y_pred):
-        err = []
-        for yt, ypt in zip(y[1:], y_pred[1:]):
-            err.append(compute_square_error(yt, ypt))
-        return err
-    err = []
-    for y, u, t in zip(Y_abs, U, T):
-        y_pred = predict_glv(y[0], u, t, A, g, B)
-
-        if not np.all(np.isfinite(y_pred)):
-            return np.inf
-        err += compute_square_errors(y, y_pred)
-    return np.array(err)
-
-
-def compute_errors_by_time(Y, U, T, A, g, B):
+def compute_errors_by_time(Y, Y_pred):
     error_by_time = []
-    for y, u, t in zip(Y, U, T):
-        y_pred = predict(y[0], u, t, A, g, B)
+    for y, y_pred in zip(Y, Y_pred):
         y_error = [ [0,np.nan] + (y[0]/y[0].sum()).tolist() + np.zeros(Y[0].shape[1]).tolist() ]
         for t in range(1, y_pred.shape[0]):
-            err = compute_square_error(y[t], y_pred[t])
+            err = np.square(y[t] -  y_pred[t]).sum()
             t_err = [t, err] + (y[t] / y[t].sum()).tolist() + y_pred[t].tolist()
             y_error.append(t_err)
         error_by_time.append(np.array(y_error))
     return error_by_time
 
 
-def compute_errors_by_time_linear(Y, U, T, A, g, B):
-    error_by_time = []
-    for y, u, t in zip(Y, U, T):
-        y_pred = predict_linear(y[0], u, t, A, g, B)
-        y_error = [ [0,np.nan] + (y[0]/y[0].sum()).tolist() + np.zeros(Y[0].shape[1]).tolist() ]
-        for t in range(1, y_pred.shape[0]):
-            err = compute_square_error(y[t], y_pred[t])
-            t_err = [t, err] + (y[t] / y[t].sum()).tolist() + y_pred[t].tolist()
-            y_error.append(t_err)
-        error_by_time.append(np.array(y_error))
-    return error_by_time
-
-
-def compute_errors_by_time_rel_abun(Y, U, T, A, g, B):
-    error_by_time = []
-    for y, u, t in zip(Y, U, T):
-        y_pred = predict_rel_abun(y[0], u, t, A, g, B)
-        y_error = [ [0,np.nan] + (y[0]/y[0].sum()).tolist() + np.zeros(Y[0].shape[1]).tolist() ]
-        for t in range(1, y_pred.shape[0]):
-            err = compute_square_error(y[t], y_pred[t])
-            t_err = [t, err] + (y[t] / y[t].sum()).tolist() + y_pred[t].tolist()
-            y_error.append(t_err)
-        error_by_time.append(np.array(y_error))
-    return error_by_time
-
-
-def compute_errors_by_time_glv(Y, U, T, A, g, B):
-    error_by_time = []
-    for y, u, t in zip(Y, U, T):
-        y_pred = predict_glv(y[0], u, t, A, g, B)
-        y_error = [ [0,np.nan] + (y[0]/y[0].sum()).tolist() + np.zeros(Y[0].shape[1]).tolist() ]
-        for t in range(1, y_pred.shape[0]):
-            err = compute_square_error(y[t], y_pred[t])
-            t_err = [t, err] + (y[t] / y[t].sum()).tolist() + (y_pred[t]).tolist()
-            y_error.append(t_err)
-        error_by_time.append(np.array(y_error))
-    return error_by_time
-
-
-def prediction_experiment(Y, U, T):
-    # plot fit on test data with cross validation
-    baseline_err_cv = []
-    en_err_cv = []
-    linear_err_cv = []
-    rel_abun_err_cv = []
-    glv_err_cv = []
-
-    en_err_stratified_cv = []
-    linear_err_stratified_cv = []
-    rel_abun_err_stratified_cv = []
-    glv_err_stratified_cv = []
+def fit_model(Y, U, T, model):
+    models = ["clv", "alr", "lra", "glv", "glv-ra"]
+    if model not in ["clv", "alr", "lra", "glv", "glv-ra"]:
+        print("model must be one of", models, file=sys.stderr)
+        exit(1)
 
     folds = 5
     for fold in range(folds):
@@ -165,54 +74,132 @@ def prediction_experiment(Y, U, T):
                 train_T.append(T[i])
 
 
+        parameter_filename = "tmp/bucci_cdiff_predictions-{}".format(fold)
 
-        parameter_filename = "tmp/bucci_cdiff_prediction_parameters-{}".format(fold)
+        if model == "clv":
+            try:
+                if fold == 4:
+                    raise FileNotFoundError
+                pred_clv = pkl.load(open(parameter_filename + "-clv", "rb"))
+            except FileNotFoundError:
+                pred_clv = fit_clv(train_Y, train_T, train_U, test_Y, test_T, test_U)
+                pkl.dump(pred_clv, open(parameter_filename + "-clv", "wb"))
 
+        if model == "alr":
+            try:
+                pred_alr = pkl.load(open(parameter_filename + "-alr", "rb"))
+            except FileNotFoundError:
+                pred_alr = fit_linear_alr(train_Y, train_T, train_U, test_Y, test_T, test_U)
+                pkl.dump(pred_alr, open(parameter_filename + "-alr", "wb"))
+
+        if model == "lra":
+            try:
+                pred_lra = pkl.load(open(parameter_filename + "-lra", "rb"))
+            except FileNotFoundError:
+                pred_lra = fit_linear_rel_abun(train_Y, train_T, train_U, test_Y, test_T, test_U)
+                pkl.dump(pred_lra, open(parameter_filename + "-lra", "wb"))
+
+        if model == "glv":
+            try:
+                pred_glv = pkl.load(open(parameter_filename + "-glv", "rb"))
+            except FileNotFoundError:
+                pred_glv = fit_glv(train_Y, train_T, train_U, test_Y, test_T, test_U)
+                pkl.dump(pred_glv, open(parameter_filename + "-glv", "wb"))
+
+        if model == "glv-ra":
+            try:
+                pred_glv_ra = pkl.load(open(parameter_filename + "-glv-ra", "rb"))
+            except FileNotFoundError:
+                pred_glv_ra = fit_glv(train_Y, train_T, train_U, test_Y, test_T, test_U, use_rel_abun=True)
+                pkl.dump(pred_glv_ra, open(parameter_filename + "-glv-ra", "wb"))
+
+
+def prediction_experiment(Y, U, T):
+    # plot fit on test data with cross validation
+    baseline_err_cv = []
+    en_err_cv = []
+    linear_err_cv = []
+    rel_abun_err_cv = []
+    glv_err_cv = []
+    glv_rel_abun_err_cv = []
+
+    en_err_stratified_cv = []
+    linear_err_stratified_cv = []
+    rel_abun_err_stratified_cv = []
+    glv_err_stratified_cv = []
+    glv_rel_abun_err_stratified_cv = []
+
+    folds = 5
+    for fold in range(folds):
+        print("running fold", fold)
+        train_Y = []
+        train_U = []
+        train_T = []
+
+        test_Y = []
+        test_U = []
+        test_T = []
+        for i in range(len(Y)):
+            if i % folds == fold:
+                test_Y.append(Y[i])
+                test_U.append(U[i])
+                test_T.append(T[i])
+            else:
+                train_Y.append(Y[i])
+                train_U.append(U[i])
+                train_T.append(T[i])
+
+
+        parameter_filename = "tmp_c2b2/bucci_cdiff_predictions-{}".format(fold)
+
+        print("cLV")
         try:
-            A_e, g_e, B_e, A_ln, g_ln, B_ln, A_ra, g_ra, B_ra = pkl.load(open(parameter_filename, "rb"))
-        
+            pred_clv = pkl.load(open(parameter_filename + "-clv", "rb"))
         except FileNotFoundError:
-            train_X = estimate_latent_from_observations(train_Y)
-            Q_inv = np.eye(train_X[0].shape[1])
+            pred_clv = fit_clv(train_Y, train_T, train_U, test_Y, test_T, test_U)
+            pkl.dump(pred_clv, open(parameter_filename + "-clv", "wb"))
 
-            alpha, r_A, r_g, r_B = estimate_elastic_net_regularizers_cv(train_Y, train_U, train_T, folds=4)
-            A_e, g_e, B_e = elastic_net(train_X, train_U, train_T, Q_inv, r_A, r_g, r_B, alpha, tol=1e-3)
-            
-            alpha, r_A, r_g, r_B = estimate_elastic_net_regularizers_cv_linear(train_Y, train_U, train_T, folds=4)
-            A_ln, g_ln, B_ln = elastic_net_linear(train_X, train_U, train_T, Q_inv, r_A, r_g, r_B, alpha, tol=1e-3)
+        print("Linear ALR")
+        try:
+            pred_alr = pkl.load(open(parameter_filename + "-alr", "rb"))
+        except FileNotFoundError:
+            pred_alr = fit_linear_alr(train_Y, train_T, train_U, test_Y, test_T, test_U)
+            pkl.dump(pred_alr, open(parameter_filename + "-alr", "wb"))
 
-            train_X_rel_abun = estimate_rel_abun(train_Y)
-            Q_inv = np.eye(train_X_rel_abun[0].shape[1])
-            alpha, r_A, r_g, r_B = estimate_elastic_net_regularizers_cv_rel_abun(train_Y, train_U, train_T, folds=4)
-            A_ra, g_ra, B_ra = elastic_net_linear(train_X_rel_abun, train_U, train_T, Q_inv, r_A, r_g, r_B, alpha, tol=1e-3)
+        print("Linear Rel Abun")
+        try:
+            pred_lra = pkl.load(open(parameter_filename + "-lra", "rb"))
+        except FileNotFoundError:
+            pred_lra = fit_linear_rel_abun(train_Y, train_T, train_U, test_Y, test_T, test_U)
+            pkl.dump(pred_lra, open(parameter_filename + "-lra", "wb"))
 
-            pkl.dump((A_e, g_e, B_e, A_ln, g_ln, B_ln, A_ra, g_ra, B_ra), open(parameter_filename, "wb"))
+        print("gLV")
+        try:
+            pred_glv = pkl.load(open(parameter_filename + "-glv", "rb"))
+        except FileNotFoundError:
+            pred_glv = fit_glv(train_Y, train_T, train_U, test_Y, test_T, test_U)
+            pkl.dump(pred_glv, open(parameter_filename + "-glv", "wb"))
+
+        # print("gLV Rel Abun")
+        # try:
+        #     pred_glv_ra = pkl.load(open(parameter_filename + "-glv-ra", "rb"))
+        # except FileNotFoundError:
+        #     pred_glv_ra = fit_glv(train_Y, train_T, train_U, test_Y, test_T, test_U, use_rel_abun=True)
+        #     pkl.dump(pred_glv_ra, open(parameter_filename + "-glv-ra", "wb"))
 
         baseline_err_cv += [compute_baseline_errors(test_Y)]
-        en_err_cv += [compute_errors(test_Y, test_U, test_T, A_e, g_e, B_e)]
-        linear_err_cv += [compute_errors_linear(test_Y, test_U, test_T, A_ln, g_ln, B_ln)]
-        rel_abun_err_cv += [compute_errors_rel_abun(test_Y, test_U, test_T, A_ra, g_ra, B_ra)]
-
-        en_err_stratified_cv += compute_errors_by_time(test_Y, test_U, test_T, A_e, g_e, B_e)
-        linear_err_stratified_cv += compute_errors_by_time_linear(test_Y, test_U, test_T, A_ln, g_ln, B_ln)
-        rel_abun_err_stratified_cv += compute_errors_by_time_rel_abun(test_Y, test_U, test_T, A_ra, g_ra, B_ra)
+        en_err_cv += [compute_errors(test_Y, pred_clv)]
+        linear_err_cv += [compute_errors(test_Y, pred_alr)]
+        rel_abun_err_cv += [compute_errors(test_Y, pred_lra)]
+        glv_err_cv += [compute_errors(test_Y, pred_glv)]
+        #glv_rel_abun_err_cv = [compute_errors(test_Y, pred_glv_ra)]
 
 
-        parameter_filename = "tmp/bucci_cdiff_lotka_volterra_parameters-{}".format(fold)
-
-        try:
-            A_s, g_s, B_s = pkl.load(open(parameter_filename, "rb"))
-        
-        except FileNotFoundError:
-            train_X_log = estimate_log_space_from_observations(train_Y)
-            Q_inv = np.eye(train_X_log[0].shape[1])
-            alpha, r_A2, r_g2, r_B2 = estimate_elastic_net_regularizers_cv_lotka_volterra(train_Y, train_U, train_T, folds=4)
-            A_s, g_s, B_s = elastic_net_lotka_volterra(train_X_log, train_U, train_T, Q_inv, r_A2, r_g2, r_B2, alpha, tol=1e-3)
-
-            pkl.dump((A_s, g_s, B_s), open(parameter_filename, "wb"))
-
-        glv_err_cv += [compute_errors_glv(test_Y, test_U, test_T, A_s, g_s, B_s)]
-        glv_err_stratified_cv += compute_errors_by_time_glv(test_Y, test_U, test_T, A_s, g_s, B_s)
+        en_err_stratified_cv += compute_errors_by_time(test_Y, pred_clv)
+        linear_err_stratified_cv += compute_errors_by_time(test_Y, pred_alr)
+        rel_abun_err_stratified_cv += compute_errors_by_time(test_Y, pred_lra)
+        glv_err_stratified_cv += compute_errors_by_time(test_Y, pred_glv)
+        #glv_rel_abun_err_stratified_cv += compute_errors_by_time(test_Y, pred_glv_ra)
 
     baseline = []
     linear = []
@@ -325,13 +312,36 @@ def prediction_experiment(Y, U, T):
     return (baseline, baseline_p), (linear, linear_p), (rel_abun, rel_abun_p), (glv, glv_p)
 
 
+def adjust_concentrations(Y):
+    con =  []
+    for y in Y:
+        con += y.sum(axis=1).tolist()
+    con = np.array(con)
+    C = 1 / np.mean(con)
+
+    Y_adjusted = []
+    for y in Y:
+        Y_adjusted.append(C*y)
+
+    return Y_adjusted
+
 
 if __name__ == "__main__":
-    Y = pkl.load(open("data/bucci/Y_cdiff.pkl", "rb"))
+    Y = pkl.load(open("data/bucci/Y_cdiff-denoised.pkl", "rb"))
     U = pkl.load(open("data/bucci/U_cdiff.pkl", "rb"))
     T = pkl.load(open("data/bucci/T_cdiff.pkl", "rb"))
 
-    prediction_experiment(Y, U, T)
+    # rescale concentrations, this only
+    # scales the parameter estimates, but aids
+    # with numerical stability
+    Y_adj = adjust_concentrations(Y)
+
+    if len(sys.argv) < 2:
+        print("USAGE: python bucci_cdiff_prediction_experiments.py [MODEL]")
+    model = sys.argv[1]
+    fit_model(Y_adj, U, T, model)
+
+    #prediction_experiment(Y_adj, U, T)
 
 
 

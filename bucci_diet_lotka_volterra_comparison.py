@@ -8,32 +8,18 @@ from scipy.stats import entropy
 from scipy.stats import pearsonr
 from scipy.stats import norm
 
-from optimizers import elastic_net, elastic_net_lotka_volterra, least_squares_latent
-from bucci_cross_validation import *
-
-def compute_square_error(true, est, alr_space):
-    true = np.copy(true)
-    est = np.copy(est)
-
-    if alr_space:
-        true_alr = np.log(true[:-1] / true[-1])
-        est_alr = np.log(est[:-1] / est[-1])
-
-        return np.square(true_alr - est_alr).sum()
-    else:
-        true /= true.sum()
-        est /= est.sum()
-
-        return np.square(true - est).sum()
+from compositional_lotka_volterra import CompositionalLotkaVolterra
+from generalized_lotka_volterra import GeneralizedLotkaVolterra, ridge_regression_glv
 
 
-def compute_relative_parameters(A_abs, g_abs, B_abs):
-    last_dim = A_abs.shape[1]-1
-    A_rel = A_abs[:last_dim,] - A_abs[last_dim]
-    B_rel = B_abs[:last_dim,] - B_abs[last_dim]
-    g_rel = g_abs[:last_dim] - g_abs[last_dim]
+def compute_relative_parameters(A_abs, g_abs, B_abs, denom):
+    numer = np.array([i for i in range(A_abs.shape[0]) if i != denom])
+    A_rel = A_abs[numer,:] - A_abs[denom,:]
+    B_rel = B_abs[numer,:] - B_abs[denom,:]
+    g_rel = g_abs[numer] - g_abs[denom]
 
     return A_rel, g_rel, B_rel
+
 
 
 def plot_corr(A_rel, g_rel, B_rel, A_est, g_est, B_est, filename):
@@ -59,22 +45,22 @@ def plot_corr(A_rel, g_rel, B_rel, A_est, g_est, B_est, filename):
     df_g = pd.DataFrame(g, columns=["gLV $g_i - g_D$", r"cLV $\overline{g}_i$"])
 
     df_A.plot.scatter(ax=ax[0], x="gLV $a_{ij} - a_{iD}$", y=r"cLV $\overline{a}_{ij}$")
-    ax[0].set_xlim(-3, 3.25)
-    ax[0].set_xticks([-2, -1, 0, 1, 2, 3])
-    ax[0].set_ylim(-3, 3.25)
-    ax[0].set_yticks([-2, -1, 0, 1, 2, 3])
+    ax[0].set_xlim(-8, 7)
+    ax[0].set_xticks([-5, 0, 5])
+    ax[0].set_ylim(-8, 7)
+    ax[0].set_yticks([-5, 0, 5])
     ax[0].set_title("Interactions")
     m,b = np.polyfit(A[:,0], A[:,1], deg=1)
-    x = np.linspace(-7, 3, 3)
+    x = np.linspace(-7, 7, 3)
     y = m*x + b
     handle = ax[0].plot(x, y, label="R = {}".format(np.round(pearsonr(A[:,0], A[:,1])[0], 3)), linestyle="--", color="C3")
     ax[0].legend(handles=handle, loc="upper left")
 
     df_B.plot.scatter(ax=ax[1], x="gLV $b_{ip} - b_{iD}$", y=r"cLV $\overline{b}_{ip}$")
-    ax[1].set_xlim(-1.25, 0.25)
-    ax[1].set_xticks([-1, -0.5, 0])
-    ax[1].set_ylim(-1.25, 0.25)
-    ax[1].set_yticks([-1, -0.5, 0])
+    ax[1].set_xlim(-1.25, 1.5)
+    ax[1].set_xticks([-1, 0, 1])
+    ax[1].set_ylim(-1.25, 1.5)
+    ax[1].set_yticks([-1, 0, 1])
     ax[1].set_title("Change in Diet")
     m,b = np.polyfit(B[:,0], B[:,1], deg=1)
     x = np.linspace(-2.5, 9, 3)
@@ -84,10 +70,10 @@ def plot_corr(A_rel, g_rel, B_rel, A_est, g_est, B_est, filename):
 
 
     df_g.plot.scatter(ax=ax[2], x="gLV $g_i - g_D$", y=r"cLV $\overline{g}_i$")
-    ax[2].set_xlim(-1.15, 0.15)
-    ax[2].set_xticks([-0.9, -0.6, -0.3, 0.0])
-    ax[2].set_ylim(-1.15, 0.15)
-    ax[2].set_yticks([-0.9, -0.6, -0.3, 0.0])
+    ax[2].set_xlim(-1, 1.1)
+    ax[2].set_xticks([-0.75, 0, 0.75])
+    ax[2].set_ylim(-1, 1.1)
+    ax[2].set_yticks([-0.75, 0, 0.75])
     ax[2].set_title("Growth")
     m,b = np.polyfit(g[:,0], g[:,1], deg=1)
     x = np.linspace(-1.5, 1.5, 3)
@@ -121,23 +107,31 @@ if __name__ == "__main__":
 
     Y = adjust_concentrations(Y)
 
-    #r_A, r_g, r_B = estimate_elastic_net_regularizers_cv_lotka_volterra(Y, U, T, alr_space=False)
+    # estimated previously
+    r_A = 0.5
+    r_g = 0.5
+    r_B = 4
 
-    # r (0.1, 0.1, 0.1) sqr error 15.127024807005265
-    # r (0.5, 0.1, 0.1) sqr error 14.391427300867662
-    # r (0.9, 0.1, 0.1) sqr error 13.94759556255455
-    alpha = 1
-    r_A = 0
-    r_g = 0
-    r_B = 0
+    P = []
+    Y_pc = []
+    log_Y = []
+    for y in Y:
+        mass = y.sum(axis=1)
+        p = y / y.sum(axis=1,keepdims=True)
+        p[p == 0] = 1e-5
+        p = p / p.sum(axis=1,keepdims=True)
+        P.append(p)
+        Y_pc.append((mass.T*p.T).T)
+        log_Y.append(np.log(mass.T*p.T).T)
 
-    X = estimate_log_space_from_observations(Y)
-    A_abs, g_abs, B_abs = elastic_net_lotka_volterra(X, U, T, np.eye(Y[0].shape[1]), r_A, r_g, r_B, alpha)
-    X = estimate_latent_from_observations(Y)
-    A_en, g_en, B_en = elastic_net(X, U, T, np.eye(Y[0].shape[1]-1), r_A, r_g, r_B)
+    clv = CompositionalLotkaVolterra(P, T, U)
+    clv.r_A = r_A
+    clv.r_g = r_g
+    clv.r_B = r_B
+    clv.train_ridge()
+    A_clv, g_clv, B_clv = clv.get_params()
 
-    A_rel, g_rel, B_rel = compute_relative_parameters(A_abs, g_abs, B_abs)
-    plot_corr(A_rel, g_rel, B_rel, A_en, g_en, B_en, "plots/bucci-diet_correlation.pdf")
+    A_glv, g_glv, B_glv = ridge_regression_glv(log_Y, U, T, clv.r_A, clv.r_g, clv.r_B)
 
-
-
+    A_rel, g_rel, B_rel = compute_relative_parameters(A_glv, g_glv, B_glv, clv.denom)
+    plot_corr(A_rel, g_rel, B_rel, A_clv, g_clv, B_clv, "plots/bucci-diet_correlation.pdf")
