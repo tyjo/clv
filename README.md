@@ -4,43 +4,34 @@ Code to replicate experiments from *Compositional Lotka-Volterra describes micro
 All experiments were performed using Python 3.5.2. Packages, along with version numbers, can be found in requirements.txt. Most (if not all) of the code should run on any version of Python 3, and most versions of the packages in requirements.txt.
 
 ## Rerunning Experiments
-Each experiment is organized by the dataset on which it was performed. Datasets are labeled by FIRST_AUTHOR (e.g. Bucci, Stein, Taur). Each script runs one analysis, and outputs a figure in the plots/ folder.
+Each experiment is organized by the dataset on which it was performed. Datasets are labeled by FIRST_AUTHOR (e.g. Bucci, Stein). Each script runs one analysis, and outputs a figure in the plots/ folder.
 
 ### Simulated Data
-To rerun the analysis from Figure 2, run:
+The script ```simulation_bucci_clv.py``` is responsible for generating simulated data and performing the comparison between elastic net and ridge regression. It uses a command line interface to set simulation parameters, an example of which can be found in ```simulation_bucci_clv.sh```. The script ```plot_simulation_bucci_clv.py``` plots the simulation results saved in ```tmp_sim```.
+
+### cLV vs gLV Parameter Comparison
+The script ```plot_concentrations.py``` plots boxplots of community size, rescaled with mean size of 1. The scripts
 
 ```
-bash$ ./simulation_comparison.sh
+bucci_cdiff_lokta_volterra_comparison.py
+bucci_diet_lokta_volterra_comparison.py
+stein_lokta_volterra_comparison.py
 ```
 
-Because model training can be slow, parameters are loaded from and saved to the tmp/ folder. Delete the files in tmp to retrain the model.
-
-### gLV vs cLV Parameter Comparison
-To rerun the analysis from Figure 3, run:
-
-```
-python plot_concentrations.py
-python bucci_cdiff_lotka_volterra_comparision.py
-python bucci_diet_lotka_volterra_comparison.py
-python stein_lotka_volterra_comparison.py
-```
+generates plots of the parameter comparison between cLV and gLV.
 
 ### Prediction Performance
-To rerun the analysis from Figures 4-6, run:
+To rerun the prediction comparison, use the scripts
 
 ```
-python bucci_cdiff_prediction_experiments.py
-python bucci_diet_prediction_experiments.py
-python stein_prediction_experiments.py
-python taur_prediction_experiments.py
+bucci_cdiff_prediction_experiments.py
+bucci_diet_prediction_experiments.py
+stein_prediction_experiments.py
 ```
-This loads saved parameters from tmp/. To retrain the models, delete the files in tmp.
-
-### Domination Prediction
-To rerun the analysis from Figures 7-8, run:
+This loads saved parameters from tmp/. To retrain the models, delete the files in tmp. Plot the results using
 
 ```
-python taur_domination_prediction.py
+plot_prediction_results.py
 ```
 
 ## Data and Preprocessing
