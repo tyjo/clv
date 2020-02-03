@@ -1,5 +1,3 @@
-import matplotlib.pyplot as plt
-import numpy as np
 import pickle as pkl
 import seaborn as sns
 
@@ -9,10 +7,12 @@ def compute_concentrations(Y):
         con += y.sum(axis=1).tolist()
     con = np.array(con)
     C = 1 / np.mean(con)
+    print(np.max(C*con)/np.min(C*con))
+    print(np.var(C*con))
     return np.array(C*con)
 
 Y_stein = pkl.load(open("data/stein/Y.pkl", "rb"))
-Y_cdiff = pkl.load(open("data/bucci/Y_cdiff.pkl", "rb"))
+Y_cdiff = pkl.load(open("data/bucci/Y_cdiff-denoised.pkl", "rb"))
 Y_diet  = pkl.load(open("data/bucci/Y_diet.pkl", "rb"))
 
 fig, ax = plt.subplots(nrows=3, ncols=1,figsize=(8,3.5))
