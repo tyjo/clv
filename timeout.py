@@ -1,3 +1,5 @@
+# From https://stackoverflow.com/a/2282656
+
 from functools import wraps
 import errno
 import os
