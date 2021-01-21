@@ -2,64 +2,12 @@ import numpy as np
 import pickle as pkl
 import os
 
-
-def plot_trajectories(Y, T, output_dir, outfile):
-    import matplotlib.pyplot as plt
-    import matplotlib.gridspec as gridspec
-
-    def plot_bar(ax, y, time, unique_color_id, remaining_ids):
-        T = y.shape[0]
-        cm = plt.get_cmap("tab20c")
-        colors = [cm(i) for i in range(20)]
-        #time = np.array([t for t in range(T)])
-        widths = np.concatenate((time[1:] - time[:-1], [1])).astype(float)
-        widths[widths > 1] = 1
-
-        widths -= 1e-1
-
-        y_colors = y[:,unique_color_id]
-        ax.bar(time, y_colors[:,0], width=widths, color=colors[0], align="edge")
-        for j in range(1, y_colors.shape[1]):
-            ax.bar(time, y_colors[:,j], bottom=y_colors[:,:j].sum(axis=1), width=widths, color=colors[j], align="edge")
-        
-        ax.bar(time, y[:,remaining_ids].sum(axis=1), bottom=y_colors.sum(axis=1), width=widths, color=colors[19], align="edge")
-        #ax.set_title("Relative Abundances", fontsize=10)
-        #ax.legend(prop={"size" : 4}, bbox_to_anchor=[-0.1,1.225], loc="upper left", ncol=4)
-
-    def find_top_ids(Y, n):
-        ntaxa = Y[0].shape[1]
-        rel_abun = np.zeros(ntaxa)
-        for y in Y:
-            tpts = y.shape[0]
-            denom = y.sum(axis=1,keepdims=True)
-            denom[denom == 0] = 1
-            p = y / denom
-            rel_abun += p.sum(axis=0) / tpts
-        ids = np.argsort(-rel_abun)
-        return np.sort(ids[:n]), np.sort(ids[n:])
-
-    N = len(Y)
-    top19_ids, remaining_ids = find_top_ids(Y, 19)
-    fig, ax = plt.subplots(nrows=N,ncols=1,figsize=(N,2*N))
-    for i in range(N):
-        denom = Y[i].sum(axis=1)
-        denom[denom == 0] = 1
-        plot_bar(ax[i], (Y[i].T / denom).T, T[i], top19_ids, remaining_ids)
-
-
-    outfile = os.path.splitext(outfile)[0]
-    plt.tight_layout()
-    plt.savefig(output_dir + "/" + outfile + ".pdf")
-    plt.close()
-
-
 sample_id_to_subject_id = {}
 subject_id_time = {}
 subject_id_u = {}
 subject_id_biomass = {}
 
 f = open("data_cdiff/metadata.txt", "r")
-#g = open("data_cdiff/biomass.txt", "r")
 
 for line in f:
     line = line.split()
@@ -104,7 +52,6 @@ for subject_id in subject_id_counts:
     U_cdiff.append(u)
     T_cdiff.append(t)
 
-#plot_trajectories(Y_cdiff, T_cdiff, "./", "cdiff-denoised")
 pkl.dump(Y_cdiff, open("Y_cdiff-denoised.pkl", "wb"))
 pkl.dump(U_cdiff, open("U_cdiff.pkl", "wb"))
 pkl.dump(T_cdiff, open("T_cdiff.pkl", "wb"))
