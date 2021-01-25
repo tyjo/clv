@@ -5,6 +5,7 @@ from scipy.stats import linregress
 from scipy.integrate import RK45, solve_ivp
 from timeout import *
 
+
 def add_pseudo_counts(Y, pseudo_count=1e-3):
     """Adds pseudo counts to avoid zeros and compute relative abundances
     
@@ -28,11 +29,32 @@ def add_pseudo_counts(Y, pseudo_count=1e-3):
         Y_pc.append(y_pc)
     return Y_pc
 
+
+def construct_log_concentrations(C, pseudo_count=1e-3):
+    X = []
+    for c in C:
+        c = np.copy(c)
+        x = np.zeros((c.shape[0], c.shape[1]))
+        for t in range(c.shape[0]):
+            ct = c[t]
+            if np.any(ct == 0):
+                mass = ct.sum()
+                pt = ct / ct.sum()
+                pt = (pt + pseudo_count) / (pt + pseudo_count).sum()
+                ct = mass*pt
+
+            xt = np.log(ct)
+            x[t] = xt
+        X.append(x)
+
+    return X
+
+
 class GeneralizedLotkaVolterra:
     """Inference for compositional Lotka-Volterra.
     """
 
-    def __init__(self, C=None, T=None, U=None, denom_ids=None):
+    def __init__(self, C=None, T=None, U=None, denom_ids=None, pseudo_count=1e-3):
         """
         Parameters
         ----------
@@ -49,7 +71,7 @@ class GeneralizedLotkaVolterra:
         self.T = T
 
         if C is not None:
-            self.X = self.construct_log_concentrations(C)
+            self.X = construct_log_concentrations(C, pseudo_count)
         else:
             self.X = None
 
@@ -71,29 +93,6 @@ class GeneralizedLotkaVolterra:
         self.r_A = None
         self.r_g = None
         self.r_B = None
-
-
-    def construct_log_concentrations(self, C, denom_ids = None):
-        X = []
-        for c in C:
-            c = np.copy(c)
-            x = np.zeros((c.shape[0], c.shape[1]))
-            for t in range(c.shape[0]):
-                ct = c[t]
-                if np.any(ct == 0):
-                    # print("Error in GeneralizedLotkaVolterra: cannot take log of 0", file=sys.stderr)
-                    # exit(1)
-                    mass = ct.sum()
-                    pt = ct / ct.sum()
-                    pt = (pt + 1e-6) / (pt + 1e-6).sum()
-                    #pt /= pt.sum()
-                    ct = mass*pt
-
-                xt = np.log(ct)
-                x[t] = xt
-            X.append(x)
-
-        return X
 
 
     def get_regularizers(self):
@@ -156,7 +155,7 @@ class GeneralizedLotkaVolterra:
         if c0.ndim == 1:
             c0 = c0.reshape((1, c0.size))
 
-        X = self.construct_log_concentrations([c0])
+        X = construct_log_concentrations([c0])
         x = X[0]
 
         return predict(x, u, times, self.A, self.g, self.B)
@@ -288,7 +287,7 @@ def elastic_net_glv(X, U, T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3, verbose=Fals
         obj = objective(AgB, x_stacked, pgu_stacked)
         it += 1
 
-        if verbose:# and it % 100 == 0:
+        if verbose:
             print("\t", it, obj)
 
         if it > max_iter:
@@ -360,7 +359,7 @@ def estimate_elastic_net_regularizers_cv(X, U, T, folds, no_effects=False, verbo
         folds = len(X)
 
     rs = [0.1, 0.5, 0.7, 0.9, 1]
-    alphas = [0.1, 0.5, 1, 10]
+    alphas = [0.1, 1, 10]
 
     alpha_rA_rg_rB = []
     for alpha in alphas:
@@ -469,19 +468,6 @@ def compute_rel_abun(x):
     p = np.exp(x - logsumexp(x,axis=1, keepdims=True))
     return p
 
-
-# def predict(x, u, times, A, g, B):
-#     """Make predictions from initial conditions
-#     """
-
-#     p_pred = np.zeros((times.shape[0], x[0].size))
-#     xt = x[0]
-#     for i in range(1,times.shape[0]):
-#         dt = times[i] - times[i-1]
-#         xt = xt + dt*(g + A.dot(np.exp(xt)) + B.dot(u[i-1]))
-#         pt = compute_rel_abun(xt).flatten()
-#         p_pred[i] = pt
-#     return p_pred
 
 @timeout(5)
 def predict(x, u, times, A, g, B):

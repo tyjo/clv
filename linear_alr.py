@@ -39,7 +39,7 @@ def choose_denom(P):
     return min_idx
 
 
-def construct_alr(P, denom):
+def construct_alr(P, denom, pseudo_count=1e-3):
     """Compute the additive log ratio transformation with a given
     choice of denominator. Assumes zeros have been replaced with
     nonzero values.
@@ -49,7 +49,7 @@ def construct_alr(P, denom):
     numer = np.array([i for i in range(ntaxa) if i != denom])
     for p in P:
         p = np.copy(p)
-        p = (p + 1e-3) / (p + 1e-3).sum(axis=1,keepdims=True)
+        p = (p + pseudo_count) / (p + pseudo_count).sum(axis=1,keepdims=True)
         alr = (np.log(p[:,numer]).T - np.log(p[:,denom])).T
         ALR.append(alr)
     return ALR
@@ -59,7 +59,7 @@ class LinearALR:
     """Inference for the linear model under the additive log-ratio transformation
     """
 
-    def __init__(self, P=None, T=None, U=None, denom=None):
+    def __init__(self, P=None, T=None, U=None, denom=None, pseudo_count=1e-3):
         """
         Parameters
         ----------
@@ -76,10 +76,10 @@ class LinearALR:
 
         if P is not None and denom is None:
             self.denom = choose_denom(P)
-            self.X = construct_alr(P, self.denom)
+            self.X = construct_alr(P, self.denom, pseudo_count)
         elif P is not None and denom is not None:
             self.denom = denom
-            self.X = construct_alr(P, denom)
+            self.X = construct_alr(P, denom, pseudo_count)
         else:
             self.X = None
 
@@ -156,15 +156,6 @@ class LinearALR:
         x = X[0]
 
         return predict(x, p0, u, times, self.A, self.g, self.B, self.denom)
-        # p_pred = np.zeros((times.shape[0], x[0].size))
-        # pt = p[0]
-        # xt = x[0]
-        # for i in range(1,times.shape[0]):
-        #     dt = times[i] - times[i-1]
-        #     xt = xt + dt*(self.g + self.A.dot(pt) + self.B.dot(u[i-1]))
-        #     pt = compute_rel_abun(xt, self.denom_ids).flatten()
-        #     p_pred[i] = pt
-        # return p_pred
 
 
     def get_params(self):
@@ -281,25 +272,6 @@ def elastic_net_alr(X, U, T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3, verbose=Fals
             nxt_AgB = prv_AgB - step*gen_grad
             obj = objective(nxt_AgB, x_stacked, pgu_stacked)
 
-        # nxt_AgB = prv_AgB - step*gen_grad
-        # # threshold A
-        # A = update[:,:yDim]
-        # A[A < -step*alpha*r_A] += step*alpha*r_A
-        # A[A > step*alpha*r_A] -= step*alpha*r_A
-        # A[np.logical_and(A >= -step*alpha*r_A, A <= step*alpha*r_A)] = 0
-
-        # # threshold g
-        # g = update[:,yDim:(yDim+1)]
-        # g[g < -step*alpha*r_g] += step*alpha*r_g
-        # g[g > step*alpha*r_g] -= step*alpha*r_g
-        # g[np.logical_and(g >= -step*alpha*r_g, g <= step*alpha*r_g)] = 0
-
-        # # threshold B
-        # B = update[:,(yDim+1):]
-        # B[B < -step*alpha*r_B] += step*alpha*r_B
-        # B[B > step*alpha*r_B] -= step*alpha*r_B
-        # B[np.logical_and(B >= -step*alpha*r_B, B <= step*alpha*r_B)] = 0
-
         A = nxt_AgB[:,:yDim]
         g = nxt_AgB[:,yDim:(yDim+1)]
         B = nxt_AgB[:,(yDim+1):]
@@ -308,16 +280,9 @@ def elastic_net_alr(X, U, T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3, verbose=Fals
         AgB[:,(yDim+1):] = B
 
         obj = objective(AgB, x_stacked, pgu_stacked)
-
-        # if obj > prv_obj + 1e-3:
-        #     print("Warning: increasing objective", file=sys.stderr)
-        #     print("\tWas:", prv_obj, "Is:", obj, "at iteration", it, file=sys.stderr)
-            #break
-
-        #obj = objective(AgB, x_stacked, pgu_stacked)
         it += 1
 
-        if verbose:# and it % 100 == 0:
+        if verbose:
             print("\t", it, obj)
 
         if it > max_iter:
@@ -384,11 +349,8 @@ def estimate_elastic_net_regularizers_cv(X, P, U, T, denom, folds, no_effects=Fa
     elif len(X) < folds:
         folds = len(X)
 
-
-    #rs = [0.125, 0.25, 0.5, 1, 2, 4, 8]
     rs = [0.1, 0.5, 0.7, 0.9, 1]
-    #alphas = [0.125, 0.25, 0.5, 1, 10]
-    alphas = [0.1, 0.5, 1, 10]
+    alphas = [0.1, 1, 10]
 
     alpha_rA_rg_rB = []
     for alpha in alphas:
@@ -453,18 +415,6 @@ def compute_rel_abun(x, denom):
         p[:,i] = tmp
     return p
 
-
-# def predict(x, p, u, times, A, g, B, denom):
-#     """Make predictions from initial conditions
-#     """
-#     p_pred = np.zeros((times.shape[0], x[0].size+1))
-#     xt = x[0]
-#     for i in range(1,times.shape[0]):
-#         dt = times[i] - times[i-1]
-#         xt = xt + dt*(g + A.dot(xt) + B.dot(u[i-1]))
-#         pt = compute_rel_abun(xt, denom).flatten()
-#         p_pred[i] = pt
-#     return p_pred
 
 @timeout(5)
 def predict(x, p, u, times, A, g, B, denom):

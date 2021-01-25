@@ -1,7 +1,7 @@
 import numpy as np
 import pickle as pkl
 
-# relative abundances
+# absolute abundances
 Y = []
 # clindamycin
 U = []
@@ -19,16 +19,16 @@ zero_count = 0
 for i in np.unique(ids):
     table = data[:,data[2] == i]
     times = table[3].astype(float)
-    rel_abun = table[4:15].astype(float).T
+    abs_abun = table[4:15].astype(float).T
     antibiotics = table[15].astype(float)
     antibiotics = antibiotics.reshape((antibiotics.size, 1))
-    total_count += rel_abun.size
-    zero_count += rel_abun[rel_abun == 0].size
+    total_count += abs_abun.size
+    zero_count += abs_abun[abs_abun == 0].size
 
-    Y.append(rel_abun)
+    Y.append(abs_abun)
     U.append(antibiotics)
     T.append(times)
-    total_tpts.append(rel_abun.shape[0])
+    total_tpts.append(abs_abun.shape[0])
 
 print("Average Time Points", np.mean(total_tpts))
 pkl.dump(Y, open("Y.pkl", "wb"))

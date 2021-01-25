@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pickle as pkl
 import seaborn as sns
-import util
 
 from wilcoxon_exact import wilcoxon_exact
 
@@ -17,13 +16,14 @@ add_stat_annotation = statannot.add_stat_annotation
 
 
 def compute_rmses(dataset, model, truth):
+    folder = "pub-results"
     rmses = []
     for i, tr in enumerate(truth):
         tr /= tr.sum(axis=1,keepdims=True)
         if dataset=="stein":
-            pred = pkl.load(open("tmp/{}_prediction_parameters-{}-{}".format(dataset, i, model), "rb"))
+            pred = pkl.load(open(folder + "/{}_prediction_parameters-{}-{}".format(dataset, i, model), "rb"))
         else:
-            pred = pkl.load(open("tmp/{}_predictions-{}-{}".format(dataset, i, model), "rb"))
+            pred = pkl.load(open(folder + "/{}_predictions-{}-{}".format(dataset, i, model), "rb"))
         pred = pred[0]
         rmses.append(np.sqrt(np.mean(np.square(tr[-1] - pred[-1]))))
     return rmses
@@ -41,9 +41,9 @@ def plot_model_comparison():
     fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(4, 4))
 
     # stein
-    Y = pkl.load(open("data/stein/Y.pkl", "rb"))
-    U = pkl.load(open("data/stein/U.pkl", "rb"))
-    T = pkl.load(open("data/stein/T.pkl", "rb"))
+    Y = pkl.load(open("pub-results/stein/Y.pkl", "rb"))
+    U = pkl.load(open("pub-results/stein/U.pkl", "rb"))
+    T = pkl.load(open("pub-results/stein/T.pkl", "rb"))
 
     models = ["clv", "glv", "glv-ra", "alr", "lra"]
     results = []

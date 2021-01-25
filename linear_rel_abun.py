@@ -5,37 +5,30 @@ from scipy.stats import linregress
 from scipy.integrate import RK45, solve_ivp
 from timeout import *
 
-def choose_denom(P):
-    """Pick a denominator for additive log-ratio transformation.
+
+def estimate_relative_abundances(Y, pseudo_count=1e-3):
+    """Adds pseudo counts to avoid zeros and compute relative abundances
+    
+    Parameters
+    ----------
+        Y : a list sequencing counts or observed concentrations
+            per sequence
+        pseudo_count : pseudo count, specific in relation to
+                       the relative proportions of each taxon.
+
+    Returns
+    -------
+        P : relative abundances with pseudo counts
     """
-    np.seterr(divide="ignore", invalid="ignore")
-    log_change = None
-    for p in P:
-        s = p.sum(axis=1,keepdims=True)
-        s[s==0] = 1
-        deltas = np.log( (p/s)[1:] ) - np.log( (p/s)[:-1] )
-        if log_change is None:
-            log_change = deltas
-        else:
-            log_change = np.vstack((log_change, deltas))
-    np.seterr(divide="warn", invalid="warn")
-    # pick taxon with smallest change in log proportion
-    min_idx = -1
-    min_var = np.inf
-    ntaxa = log_change.shape[1]
-    for i in range(ntaxa):
-        if not np.all(np.isfinite(log_change[:,i])):
-            continue
-        var = np.var(log_change[:,i])
-        if var < min_var:
-            min_idx = i
-            min_var = var
-
-    if min_idx == -1:
-        print("Error: no valid denominator found", file=sys.stderr)
-        exit(1)
-
-    return min_idx
+    P = []
+    for y in Y:
+        p = np.zeros(y.shape)
+        for t in range(y.shape[0]):
+            pt = y[t] / y[t].sum()
+            pt = (pt + pseudo_count) / (pt + pseudo_count).sum()
+            p[t] = pt
+        P.append(p)
+    return P
 
 
 class LinearRelAbun:
@@ -54,6 +47,7 @@ class LinearRelAbun:
                 perturbations for each x.
         """
         self.P = P
+        #self.P = estimate_relative_abundances(P)
         self.T = T
 
         if U is None and self.P is not None:
@@ -125,6 +119,7 @@ class LinearRelAbun:
         if p0.ndim == 1:
             p0 = p0.reshape((1, p0.size))
 
+        #p0 = estimate_relative_abundances([p0])[0]
         return predict(p0, u, times, self.A, self.g, self.B)
 
 
@@ -242,24 +237,6 @@ def elastic_net_linear(X, U, T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3, verbose=F
             nxt_AgB = prv_AgB - step*gen_grad
             obj = objective(nxt_AgB, x_stacked, pgu_stacked)
 
-        # nxt_AgB = prv_AgB - step*gen_grad
-        # # threshold A
-        # A = update[:,:yDim]
-        # A[A < -step*alpha*r_A] += step*alpha*r_A
-        # A[A > step*alpha*r_A] -= step*alpha*r_A
-        # A[np.logical_and(A >= -step*alpha*r_A, A <= step*alpha*r_A)] = 0
-
-        # # threshold g
-        # g = update[:,yDim:(yDim+1)]
-        # g[g < -step*alpha*r_g] += step*alpha*r_g
-        # g[g > step*alpha*r_g] -= step*alpha*r_g
-        # g[np.logical_and(g >= -step*alpha*r_g, g <= step*alpha*r_g)] = 0
-
-        # # threshold B
-        # B = update[:,(yDim+1):]
-        # B[B < -step*alpha*r_B] += step*alpha*r_B
-        # B[B > step*alpha*r_B] -= step*alpha*r_B
-        # B[np.logical_and(B >= -step*alpha*r_B, B <= step*alpha*r_B)] = 0
 
         A = nxt_AgB[:,:yDim]
         g = nxt_AgB[:,yDim:(yDim+1)]
@@ -270,15 +247,9 @@ def elastic_net_linear(X, U, T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3, verbose=F
 
         obj = objective(AgB, x_stacked, pgu_stacked)
 
-        # if obj > prv_obj + 1e-3:
-        #     print("Warning: increasing objective", file=sys.stderr)
-        #     print("\tWas:", prv_obj, "Is:", obj, "at iteration", it, file=sys.stderr)
-            #break
-
-        #obj = objective(AgB, x_stacked, pgu_stacked)
         it += 1
 
-        if verbose:# and it % 100 == 0:
+        if verbose:
             print("\t", it, obj)
 
         if it > max_iter:
@@ -345,13 +316,8 @@ def estimate_elastic_net_regularizers_cv(P, U, T, folds, no_effects=False, verbo
     elif len(P) < folds:
         folds = len(P)
 
-
-    #rs = [0.125, 0.25, 0.5, 1, 2, 4, 8]
     rs = [0.1, 0.5, 0.7, 0.9, 1]
-    #alphas = [0.125, 0.25, 0.5, 1, 10]
-    alphas = [0.1, 0.5, 1, 10]
-    # alphas = [0.125]#, 0.25, 0.5, 1, 2, 4, 8]
-    # rs = [0]
+    alphas = [0.1, 1, 10]
 
     alpha_rA_rg_rB = []
     for alpha in alphas:
@@ -400,19 +366,6 @@ def estimate_elastic_net_regularizers_cv(P, U, T, folds, no_effects=False, verbo
     return best_r
 
 
-
-# def predict(p, u, times, A, g, B):
-#     """Make predictions from initial conditions
-#     """
-#     p_pred = np.zeros((times.shape[0], p[0].size))
-#     pt = p[0]
-#     for i in range(1,times.shape[0]):
-#         dt = times[i] - times[i-1]
-#         pt = pt + dt*(g + A.dot(pt) + B.dot(u[i-1]))
-#         pt = pt / pt.sum()
-#         p_pred[i] = pt
-#     return p_pred
-
 @timeout(5)
 def predict(p, u, times, A, g, B):
     """Make predictions from initial conditions
@@ -440,7 +393,6 @@ def compute_prediction_error(P, U, T, A, g, B):
     def compute_err(p, p_pred):
         err = 0
         ntaxa = p.shape[1]
-        #err += np.mean(np.square(p[1:] - p_pred[1:]).sum(axis=1))
         err += np.square(p[1:] - p_pred[1:]).sum()
         return err/ntaxa
     err = 0

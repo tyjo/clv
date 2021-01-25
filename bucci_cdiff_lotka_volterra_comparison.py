@@ -52,7 +52,6 @@ def plot_corr(A_rel, g_rel, B_rel, A_est, g_est, B_est, filename):
     x = np.linspace(-3.5, 6.5, 3)
     y = m*x + b
     handle = ax[0].plot(x, y, label="R = {}".format(np.round(pearsonr(A[:,0], A[:,1])[0], 3)), linestyle="--", color="C3")
-    print(pearsonr(A[:,0], A[:,1])[0])
     ax[0].legend(handles=handle, loc="upper left")
 
     df_B.plot.scatter(ax=ax[1], x="gLV $b_{ip} - b_{iD}$", y=r"cLV $\overline{b}_{ip}$")
@@ -118,13 +117,12 @@ if __name__ == "__main__":
     for y in Y:
         mass = y.sum(axis=1)
         p = y / y.sum(axis=1,keepdims=True)
-        p[p == 0] = 1e-5
-        p = p / p.sum(axis=1,keepdims=True)
+        p = (p + 1e-5) / (p + 1e-5).sum(axis=1,keepdims=True)
         P.append(p)
         Y_pc.append((mass.T*p.T).T)
         log_Y.append(np.log(mass.T*p.T).T)
 
-    clv = CompositionalLotkaVolterra(P, T, U)
+    clv = CompositionalLotkaVolterra(P, T, U, pseudo_count=1e-5)
     clv.r_A = r_A
     clv.r_g = r_g
     clv.r_B = r_B

@@ -5,6 +5,7 @@ from scipy.stats import linregress
 from scipy.integrate import RK45, solve_ivp
 from timeout import *
 
+
 def estimate_relative_abundances(Y, pseudo_count=1e-3):
     """Adds pseudo counts to avoid zeros and compute relative abundances
     
@@ -63,7 +64,7 @@ def choose_denom(P):
     return min_idx
 
 
-def construct_alr(P, denom):
+def construct_alr(P, denom, pseudo_count=1e-3):
     """Compute the additive log ratio transformation with a given
     choice of denominator. Assumes zeros have been replaced with
     nonzero values.
@@ -73,20 +74,18 @@ def construct_alr(P, denom):
     numer = np.array([i for i in range(ntaxa) if i != denom])
     for p in P:
         p = np.copy(p)
-        p = (p + 1e-3) / (p + 1e-3).sum(axis=1,keepdims=True)
+        p = (p + pseudo_count) / (p + pseudo_count).sum(axis=1,keepdims=True)
         p /= p.sum(axis=1, keepdims=True) 
         alr = (np.log(p[:,numer]).T - np.log(p[:,denom])).T
         ALR.append(alr)
     return ALR
 
 
-
-
 class CompositionalLotkaVolterra:
     """Inference for compositional Lotka-Volterra.
     """
 
-    def __init__(self, P=None, T=None, U=None, denom=None):
+    def __init__(self, P=None, T=None, U=None, denom=None, pseudo_count=1e-3):
         """
         Parameters
         ----------
@@ -103,10 +102,10 @@ class CompositionalLotkaVolterra:
 
         if P is not None and denom is None:
             self.denom = choose_denom(P)
-            self.X = construct_alr(P, self.denom)
+            self.X = construct_alr(P, self.denom, pseudo_count)
         elif P is not None and denom is not None:
             self.denom = denom
-            self.X = construct_alr(P, denom)
+            self.X = construct_alr(P, denom, pseudo_count)
         else:
             self.X = None
 
@@ -195,68 +194,6 @@ class CompositionalLotkaVolterra:
         x = X[0]
 
         return predict(x, p0, u, times, self.A, self.g, self.B, self.denom)
-
-
-    def predict_x(self, p0, times, u = None):
-        """Predict relative abundances from initial conditions.
-
-        Parameters
-        ----------
-            p0     : the initial observation, a D-dim numpy array
-            times  : a T by 1 numpy array of sample times
-            u      : a T by P numpy array of external perturbations
-
-        Returns
-        -------
-            y_pred : a T by D numpy array of predicted relative
-                     abundances. Since we cannot predict initial
-                     conditions, the first entry is set to the array
-                     of -1.
-        """
-        if u is None:
-            u = np.zeros((times.shape[0], 1))
-
-        if p0.ndim == 1:
-            p0 = p0.reshape((1, p0.size))
-
-        X = construct_alr([p0], self.denom)
-        x = X[0]
-
-        return predict_x(x, p0, u, times, self.A, self.g, self.B, self.denom)
-
-
-    def predict_one_step(self, p, times, u = None):
-        """Predict relative abundances one step at time.
-
-        Parameters
-        ----------
-            p      : a T by D-dim numpy array of observations
-            times  : a T by 1 numpy array of sample times
-            u      : a T by P numpy array of external perturbations
-
-        Returns
-        -------
-            y_pred : a T by D numpy array of predicted relative
-                     abundances. Since we cannot predict initial
-                     conditions, the first entry is set to the array
-                     of -1.
-        """
-        X, denom_ids = self.construct_log_ratios([p], self.denom_ids)
-        x = X[0]
-
-        if u is None:
-            u = np.zeros((x.shape[0], 1))
-
-        p_pred = np.zeros((times.shape[0], x[0].size))
-        pt = p[0]
-        xt = x[0]
-        for i in range(1,times.shape[0]):
-            dt = times[i] - times[i-1]
-            xt = x[i-1] + dt*(self.g + self.A.dot(p[i-1]) + self.B.dot(u[i-1]))
-            pt = compute_rel_abun(xt, denom_ids).flatten()
-            p_pred[i] = pt
-            
-        return p_pred
    
 
     def get_params(self):
@@ -375,25 +312,6 @@ def elastic_net_clv(X, P, U, T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3, verbose=F
             nxt_AgB = prv_AgB - step*gen_grad
             obj = objective(nxt_AgB, x_stacked, pgu_stacked)
 
-        # nxt_AgB = prv_AgB - step*gen_grad
-        # # threshold A
-        # A = update[:,:yDim]
-        # A[A < -step*alpha*r_A] += step*alpha*r_A
-        # A[A > step*alpha*r_A] -= step*alpha*r_A
-        # A[np.logical_and(A >= -step*alpha*r_A, A <= step*alpha*r_A)] = 0
-
-        # # threshold g
-        # g = update[:,yDim:(yDim+1)]
-        # g[g < -step*alpha*r_g] += step*alpha*r_g
-        # g[g > step*alpha*r_g] -= step*alpha*r_g
-        # g[np.logical_and(g >= -step*alpha*r_g, g <= step*alpha*r_g)] = 0
-
-        # # threshold B
-        # B = update[:,(yDim+1):]
-        # B[B < -step*alpha*r_B] += step*alpha*r_B
-        # B[B > step*alpha*r_B] -= step*alpha*r_B
-        # B[np.logical_and(B >= -step*alpha*r_B, B <= step*alpha*r_B)] = 0
-
         A = nxt_AgB[:,:yDim]
         g = nxt_AgB[:,yDim:(yDim+1)]
         B = nxt_AgB[:,(yDim+1):]
@@ -402,16 +320,9 @@ def elastic_net_clv(X, P, U, T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3, verbose=F
         AgB[:,(yDim+1):] = B
 
         obj = objective(AgB, x_stacked, pgu_stacked)
-
-        # if obj > prv_obj + 1e-3:
-        #     print("Warning: increasing objective", file=sys.stderr)
-        #     print("\tWas:", prv_obj, "Is:", obj, "at iteration", it, file=sys.stderr)
-            #break
-
-        #obj = objective(AgB, x_stacked, pgu_stacked)
         it += 1
 
-        if verbose:# and it % 100 == 0:
+        if verbose:
             print("\t", it, obj)
 
         if it > max_iter:
@@ -478,16 +389,6 @@ def estimate_elastic_net_regularizers_cv(X, P, U, T, denom, folds, no_effects=Fa
     elif len(X) < folds:
         folds = len(X)
 
-
-    #rs = [0.125, 0.25, 0.5, 1, 2, 4, 8]
-    #rs = [0.1, 0.5, 0.7, 0.9, 1]
-    #alphas = [0.1, 0.2, 0.4, 0.8, 1, 5, 10]
-    #alphas = [0.125, 0.25, 0.5, 1]
-    # rs = [0]
-
-    # rs = [0.125, 0.25, 0.5, 1]
-    # alphas = [0.1, 0.5, 0.7, 0.9, 1]
-
     rs = [0.1, 0.5, 0.7, 0.9, 1]
     alphas = [0.1, 1, 10]
 
@@ -549,8 +450,7 @@ def estimate_ridge_regularizers_cv(X, P, U, T, denom, folds, no_effects=False, v
     elif len(X) < folds:
         folds = len(X)
 
-    #rs = [0.125, 0.25, 0.5, 1, 2, 4]
-    rs = [0.1, 1, 10]
+    rs = [0.125, 0.25, 0.5, 1, 2, 4]
     rA_rg_rB = []
     for r_A in rs:
         for r_g in rs:
@@ -601,18 +501,6 @@ def estimate_ridge_regularizers_cv(X, P, U, T, denom, folds, no_effects=False, v
     return best_r
 
 
-# def compute_rel_abun(x, denom_ids):
-#     if x.ndim == 1:
-#         x = np.expand_dims(x, axis=0)
-#     alt_denom = np.array([i for i in range(x.shape[1]) if i not in denom_ids])
-#     x_d1 = np.hstack( (x[:,denom_ids], np.zeros((x.shape[0], 1))) )
-#     x_d2 = np.hstack( (x[:,alt_denom], np.zeros((x.shape[0], 1))) )
-#     p = np.zeros(x.shape)
-#     p[:,denom_ids] = np.exp(x[:,denom_ids] - logsumexp(x_d1,axis=1,keepdims=True))
-#     p[:,alt_denom] = np.exp(x[:,alt_denom] - logsumexp(x_d2,axis=1,keepdims=True))
-#     p /= p.sum()
-#     return p
-
 def compute_rel_abun(x, denom):
     if x.ndim == 1:
         x = np.expand_dims(x, axis=0)
@@ -624,6 +512,7 @@ def compute_rel_abun(x, denom):
         p[:,i-1] = np.copy(p[:,i])
         p[:,i] = tmp
     return p
+
 
 @timeout(5)
 def predict(x, p, u, times, A, g, B, denom):
@@ -648,36 +537,11 @@ def predict(x, p, u, times, A, g, B, denom):
         p_pred[i] = pt
     return p_pred
 
-    # p_pred = np.zeros((times.shape[0], x[0].size+1))
-    # pt = p[0]
-    # xt = x[0]
-    # for i in range(1,times.shape[0]):
-    #     dt = times[i] - times[i-1]
-    #     xt = xt + dt*(g + A.dot(pt) + B.dot(u[i-1]))
-    #     pt = compute_rel_abun(xt, denom).flatten()
-    #     p_pred[i] = pt
-    # return p_pred
-
-
-def predict_x(x, p, u, times, A, g, B, denom):
-    """Make predictions from initial conditions
-    """
-    x_pred = np.zeros((times.shape[0], x[0].size))
-    pt = p[0]
-    xt = x[0]
-    for i in range(1,times.shape[0]):
-        dt = times[i] - times[i-1]
-        xt = xt + dt*(g + A.dot(pt) + B.dot(u[i-1]))
-        pt = compute_rel_abun(xt, denom).flatten()
-        x_pred[i] = np.copy(xt)
-    return x_pred
-
 
 def compute_prediction_error(X, P, U, T, A, g, B, denom_ids):
     def compute_err(p, p_pred):
         err = 0
         ntaxa = p.shape[1]
-        #err += np.mean(np.square(p[1:] - p_pred[1:]).sum(axis=1))
         err += np.square(p[1:] - p_pred[1:]).sum()
         return err/ntaxa
     err = 0

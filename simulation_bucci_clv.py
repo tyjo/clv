@@ -283,14 +283,14 @@ if __name__ == "__main__":
         print("simulating dataset {}...".format(i))
 
         try:
-            train_counts, train_rel_abn, train_t_pts, hold_out_counts, hold_out_rel_abn, hold_out_t_pts, A, g, denom = pkl.load(open("tmp/clv-sim-set-{}-{}-{}-{}.pkl".format(depth, db, ss, i), "rb"))
+            train_counts, train_rel_abn, train_t_pts, hold_out_counts, hold_out_rel_abn, hold_out_t_pts, A, g, denom = pkl.load(open("tmp_sim/clv-sim-set-{}-{}-{}-{}.pkl".format(depth, db, ss, i), "rb"))
 
         except FileNotFoundError:
             simulated_dataset = "Failed"
             while simulated_dataset == "Failed":
                 simulated_dataset = generate_simulation_data(ss, hold_out_size, db, depth)
             train_counts, train_rel_abn, train_t_pts, hold_out_counts, hold_out_rel_abn, hold_out_t_pts, A, g, denom = simulated_dataset
-            pkl.dump((train_counts, train_rel_abn, train_t_pts, hold_out_counts, hold_out_rel_abn, hold_out_t_pts, A, g, denom), open("tmp/clv-sim-set-{}-{}-{}-{}.pkl".format(depth, db, ss, i), "wb"))
+            pkl.dump((train_counts, train_rel_abn, train_t_pts, hold_out_counts, hold_out_rel_abn, hold_out_t_pts, A, g, denom), open("tmp_sim/clv-sim-set-{}-{}-{}-{}.pkl".format(depth, db, ss, i), "wb"))
 
         try:
             A_clv_en, g_clv_en, pred_en = pkl.load(open("tmp_sim/clv-sim-en-{}-{}-{}-{}.pkl".format(depth, db, ss, i), "rb"))

@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pickle as pkl
 import seaborn as sns
-import util
 
 from wilcoxon_exact import wilcoxon_exact
 
@@ -16,13 +15,15 @@ import statannot
 add_stat_annotation = statannot.add_stat_annotation
 
 def compute_rmses(dataset, model, truth):
+    folder = "pub-results"
+
     rmses = []
     for i, tr in enumerate(truth):
         tr /= tr.sum(axis=1,keepdims=True)
         if dataset=="stein":
-            pred = pkl.load(open("tmp/{}_prediction_parameters-{}-{}".format(dataset, i, model), "rb"))
+            pred = pkl.load(open(folder + "/{}_prediction_parameters-{}-{}".format(dataset, i, model), "rb"))
         else:
-            pred = pkl.load(open("tmp/{}_predictions-{}-{}".format(dataset, i, model), "rb"))
+            pred = pkl.load(open(folder + "/{}_predictions-{}-{}".format(dataset, i, model), "rb"))
         pred = pred[0]
         rmses.append(np.sqrt(np.mean(np.square(tr[1:] - pred[1:]))))
     return rmses
@@ -39,9 +40,9 @@ def plot_model_comparison():
     fig, ax = plt.subplots(nrows=1, ncols=3, figsize=(12, 4))
 
     # bucci diet
-    Y = pkl.load(open("data/bucci/Y_diet.pkl", "rb"))
-    U = pkl.load(open("data/bucci/U_diet.pkl", "rb"))
-    T = pkl.load(open("data/bucci/T_diet.pkl", "rb"))
+    Y = pkl.load(open("pub-results/bucci/Y_diet.pkl", "rb"))
+    U = pkl.load(open("pub-results/bucci/U_diet.pkl", "rb"))
+    T = pkl.load(open("pub-results/bucci/T_diet.pkl", "rb"))
 
     models = ["clv", "glv",  "glv-ra", "alr", "lra"]
     results = []
@@ -61,20 +62,9 @@ def plot_model_comparison():
         results.append(["initial", rmse])
         results_dict["initial"].append(rmse)
 
-    glv_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["glv"], alternative="less")[1], 3)
-    alr_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["alr"], alternative="less")[1], 3)
-    lra_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["lra"], alternative="less")[1], 3)
-    glv_ra_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["glv-ra"], alternative="less")[1], 3)
-    static_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["initial"], alternative="less")[1], 3)
-
-    glv_p = "p=" + str(glv_p) if glv_p < 0.05 else "n.s."
-    alr_p = "p=" + str(alr_p) if alr_p < 0.05 else "n.s."
-    lra_p = "p=" + str(lra_p) if lra_p < 0.05 else "n.s."
-    glv_ra_p = "p=" + str(glv_ra_p) if glv_ra_p < 0.05 else "n.s."
-    static_p = "p=" + str(static_p) if static_p < 0.05 else "n.s."
 
     rmse = pd.DataFrame(results, columns=["Model", "RMSE"])
-    sns.boxplot(ax=ax[0], x="Model", y="RMSE", data=rmse, palette="colorblind")
+    sns.boxplot(ax=ax[0], x="Model", y="RMSE", data=rmse)
     ax[0].set_xticklabels(["cLV",
                            "gLV$_{abs}$",
                            "gLV$_{rel}$",
@@ -91,9 +81,9 @@ def plot_model_comparison():
 
 
     # bucci C. diff
-    Y = pkl.load(open("data/bucci/Y_cdiff-denoised.pkl", "rb"))
-    U = pkl.load(open("data/bucci/U_cdiff.pkl", "rb"))
-    T = pkl.load(open("data/bucci/T_cdiff.pkl", "rb"))
+    Y = pkl.load(open("pub-results/bucci/Y_cdiff-denoised.pkl", "rb"))
+    U = pkl.load(open("pub-results/bucci/U_cdiff.pkl", "rb"))
+    T = pkl.load(open("pub-results/bucci/T_cdiff.pkl", "rb"))
 
     models = ["clv", "glv", "glv-ra", "alr", "lra"]
     results = []
@@ -113,20 +103,8 @@ def plot_model_comparison():
         results.append(["initial", rmse])
         results_dict["initial"].append(rmse)
 
-    glv_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["glv"], alternative="less")[1], 3)
-    alr_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["alr"], alternative="less")[1], 3)
-    lra_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["lra"], alternative="less")[1], 3)
-    glv_ra_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["glv-ra"], alternative="less")[1], 3)
-    static_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["initial"], alternative="less")[1], 3)
-
-    glv_p = "p=" + str(glv_p) if glv_p < 0.05 else "n.s."
-    alr_p = "p=" + str(alr_p) if alr_p < 0.05 else "n.s."
-    lra_p = "p=" + str(lra_p) if lra_p < 0.05 else "n.s."
-    glv_ra_p = "p=" + str(glv_ra_p) if glv_ra_p < 0.05 else "n.s."
-    static_p = "p=" + str(static_p) if static_p < 0.05 else "n.s."
-
     rmse = pd.DataFrame(results, columns=["Model", "RMSE"])
-    sns.boxplot(ax=ax[1], x="Model", y="RMSE", data=rmse, palette="colorblind")
+    sns.boxplot(ax=ax[1], x="Model", y="RMSE", data=rmse)
     ax[1].set_xticklabels(["cLV",
                            "gLV$_{abs}$",
                            "gLV$_{rel}$",
@@ -143,9 +121,9 @@ def plot_model_comparison():
 
 
     # stein
-    Y = pkl.load(open("data/stein/Y.pkl", "rb"))
-    U = pkl.load(open("data/stein/U.pkl", "rb"))
-    T = pkl.load(open("data/stein/T.pkl", "rb"))
+    Y = pkl.load(open("pub-results/stein/Y.pkl", "rb"))
+    U = pkl.load(open("pub-results/stein/U.pkl", "rb"))
+    T = pkl.load(open("pub-results/stein/T.pkl", "rb"))
 
     models = ["clv", "glv", "glv-ra", "alr", "lra"]
     results = []
@@ -165,20 +143,9 @@ def plot_model_comparison():
         results.append(["initial", rmse])
         results_dict["initial"].append(rmse)
 
-    glv_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["glv"], alternative="less")[1], 3)
-    alr_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["alr"], alternative="less")[1], 3)
-    lra_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["lra"], alternative="less")[1], 3)
-    glv_ra_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["glv-ra"], alternative="less")[1], 3)
-    static_p = np.round(wilcoxon_exact(results_dict["clv"], results_dict["initial"], alternative="less")[1], 3)
-
-    glv_p = "p=" + str(glv_p) if glv_p < 0.05 else "n.s."
-    alr_p = "p=" + str(alr_p) if alr_p < 0.05 else "n.s."
-    lra_p = "p=" + str(lra_p) if lra_p < 0.05 else "n.s."
-    glv_ra_p = "p=" + str(glv_ra_p) if glv_ra_p < 0.05 else "n.s."
-    static_p = "p=" + str(static_p) if static_p < 0.05 else "n.s."
 
     rmse = pd.DataFrame(results, columns=["Model", "RMSE"])
-    sns.boxplot(ax=ax[2], x="Model", y="RMSE", data=rmse, palette="colorblind")
+    sns.boxplot(ax=ax[2], x="Model", y="RMSE", data=rmse)
     ax[2].set_xticklabels(["cLV",
                        "gLV$_{abs}$",
                         "gLV$_{rel}$",

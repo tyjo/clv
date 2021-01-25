@@ -63,10 +63,6 @@ for subject_id in sorted(subject_id_counts):
     T_diet.append(t)
 
 
-
 pkl.dump(Y_diet, open("Y_diet.pkl", "wb"))
 pkl.dump(U_diet, open("U_diet.pkl", "wb"))
 pkl.dump(T_diet, open("T_diet.pkl", "wb"))
-
-# print("sample size", len(Y_diet))
-# print("% zero", zero_counts / total_counts)
