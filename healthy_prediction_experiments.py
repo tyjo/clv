@@ -1,26 +1,27 @@
-#Run the simulations on healthy data
-import matplotlib
-matplotlib.use('agg')
+"""
+Run the simulations on healthy data
 
-'''
-python scripts/clv_code_repo/healthy_prediction_experiments.py \
+Usage: python scripts/clv_code_repo/healthy_prediction_experiments.py \
     -m "glv" \
     -r "ridge" \
     -i "scripts/clv_code_repo/data/gibson_agg/top_10_otus"\
     -o "output/lv_sims/top_10_otus"
     -t ""
-'''
+"""
+
+import matplotlib
+matplotlib.use('agg')
+
 import logging
 import numpy as np
 import pickle as pkl
-import sys
-import mdsine2 as md2
 import argparse
 import copy
 import time
 from pathlib import Path
 
 from fit_models import fit_clv, fit_glv, fit_linear_alr, fit_linear_rel_abun, fit_glv_ridge
+
 
 def parse_arguments():
 
@@ -31,10 +32,9 @@ def parse_arguments():
         help="Location of the folder where the output is saved")
     parser.add_argument("-i", "--input_loc",
         help="location of the input files")
-    parser.add_argument("-t", "--runtime_file",
-        help="file where runtime information is added")
 
     return parser.parse_args()
+
 
 def compute_errors(Y, Y_pred):
     def compute_square_errors(y, y_pred):
@@ -47,6 +47,7 @@ def compute_errors(Y, Y_pred):
         err += compute_square_errors(y, y_pred)
     return np.array(err)
 
+
 def compute_baseline_errors(Y):
     Y_pred = []
     for y in Y:
@@ -54,6 +55,7 @@ def compute_baseline_errors(Y):
         y_pred = np.array([p0 for t in range(y.shape[0])])
         Y_pred.append(y_pred)
     return compute_errors(Y, Y_pred)
+
 
 def compute_errors_by_time(Y, Y_pred):
     error_by_time = []
@@ -65,6 +67,7 @@ def compute_errors_by_time(Y, Y_pred):
             y_error.append(t_err)
         error_by_time.append(np.array(y_error))
     return error_by_time
+
 
 def fit_model(Y, U, T, model, savepath, n_subjects, regression_type="elastic-net"):
 
@@ -151,6 +154,7 @@ def fit_model(Y, U, T, model, savepath, n_subjects, regression_type="elastic-net
                     #pkl.dump(pred_glv_ra, open(parameter_filename + "-glv-ra", "wb"))
                     #print("saved: " + parameter_filename + " " + model)
 
+
 def adjust_concentrations(Y):
     con =  []
     for y in Y:
@@ -164,6 +168,7 @@ def adjust_concentrations(Y):
 
     return Y_adjusted
 
+
 def add_limit_detection(X, lim=1e5):
     """adjust the 0 concentration values"""
 
@@ -175,8 +180,8 @@ def add_limit_detection(X, lim=1e5):
 
     return new_X
 
-if __name__ == "__main__":
 
+if __name__ == "__main__":
     start_time = time.time()
     args = parse_arguments()
     input_files_path = Path(args.input_loc)
@@ -189,23 +194,5 @@ if __name__ == "__main__":
 
     model = args.model
 
-    fit_model(Y_adj, U, T, model, Path(args.output_loc), n_subjects = len(Y),
-        regression_type=args.regression)
+    fit_model(Y_adj, U, T, model, Path(args.output_loc), n_subjects=len(Y), regression_type=args.regression)
     end_time = time.time()
-
-    #elapsed_time = end_time - start_time
-    #start_end_time = "Start: {}, End: {}".format(start_time, end_time)
-    #str_time = "Total inference time for {} model using {} regression is: {}".format(
-    #    model, args.regression, elapsed_time)
-    #all_str = start_end_time + "\n" + str_time
-
-    #file = open(Path(args.output_loc)/"time.txt".format(model, args.regression),
-        "w")
-    #file.write(all_str)
-    #file.close()
-
-    n_otus = args.input_loc.split("/")[-1].split("_")[-1]
-    file2 = open(args.runtime_file, "a")
-    str = "{}, {}, {}, {}\n".format(args.model, args.regression, n_otus, elapsed_time)
-    file2.write(str)
-    file2.close()
