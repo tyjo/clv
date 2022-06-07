@@ -182,7 +182,6 @@ def add_limit_detection(X, lim=1e5):
 
 
 if __name__ == "__main__":
-    start_time = time.time()
     args = parse_arguments()
     input_files_path = Path(args.input_loc)
     Y = pkl.load(open(input_files_path / "Y.pkl", "rb"))
@@ -195,4 +194,3 @@ if __name__ == "__main__":
     model = args.model
 
     fit_model(Y_adj, U, T, model, Path(args.output_loc), n_subjects=len(Y), regression_type=args.regression)
-    end_time = time.time()
