@@ -4,6 +4,7 @@ from scipy.special import logsumexp
 from scipy.stats import linregress
 from scipy.integrate import RK45, solve_ivp
 from timeout import *
+import time 
 
 
 def add_pseudo_counts(Y, pseudo_count=1e-3):
@@ -38,6 +39,7 @@ def construct_log_concentrations(C, pseudo_count=1e-3):
         for t in range(c.shape[0]):
             ct = c[t]
             if np.any(ct == 0):
+                print("Using psuedo count at time: {}".format(t))
                 mass = ct.sum()
                 pt = ct / ct.sum()
                 pt = (pt + pseudo_count) / (pt + pseudo_count).sum()
@@ -69,7 +71,7 @@ class GeneralizedLotkaVolterra:
         """
         self.C = C
         self.T = T
-
+        self.pseudo_count = pseudo_count
         if C is not None:
             self.X = construct_log_concentrations(C, pseudo_count)
         else:
