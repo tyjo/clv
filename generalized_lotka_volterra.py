@@ -4,12 +4,12 @@ from scipy.special import logsumexp
 from scipy.stats import linregress
 from scipy.integrate import RK45, solve_ivp
 from timeout import *
-import time 
+import time
 
 
 def add_pseudo_counts(Y, pseudo_count=1e-3):
     """Adds pseudo counts to avoid zeros and compute relative abundances
-    
+
     Parameters
     ----------
         Y : a list of observed concentrations per sequence
@@ -115,17 +115,20 @@ class GeneralizedLotkaVolterra:
             if verbose:
                 print("Estimating regularizers...")
             self.alpha, self.r_A, self.r_g, self.r_B = estimate_elastic_net_regularizers_cv(self.X, self.U, self.T, folds=folds, no_effects=self.no_effects, verbose=verbose)
-            
+
         if verbose:
             print("Estimating model parameters...")
         self.A, self.g, self.B = elastic_net_glv(self.X, self.U, self.T, self.Q_inv, self.alpha, self.r_A, self.r_g, self.r_B)
-        
+
         if verbose:
             print()
 
 
     def train_ridge(self, verbose=False, folds=10):
         r_A, r_g, r_B = estimate_ridge_regularizers_cv(self.X, self.U, self.T, folds=folds, no_effects=self.no_effects, verbose=verbose)
+        self.r_A = r_A
+        self.r_g = r_g
+        self.r_B = r_B
         
         if verbose:
             print("Estimating model parameters...")
@@ -162,7 +165,7 @@ class GeneralizedLotkaVolterra:
 
         return predict(x, u, times, self.A, self.g, self.B)
 
-   
+
     def get_params(self):
         A = np.copy(self.A)
         g = np.copy(self.g)
@@ -271,7 +274,7 @@ def elastic_net_glv(X, U, T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3, verbose=Fals
         step = 0.1
         grad = gradient(prv_AgB, x_stacked, pgu_stacked)
         gen_grad = generalized_gradient(prv_AgB, grad, step)
-        nxt_AgB = prv_AgB - step*gen_grad 
+        nxt_AgB = prv_AgB - step*gen_grad
         obj = objective(nxt_AgB, x_stacked, pgu_stacked)
         while obj > prv_obj - step*(grad*gen_grad).sum() + step*0.5*np.square(gen_grad).sum():
             step /= 2
@@ -305,7 +308,7 @@ def elastic_net_glv(X, U, T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3, verbose=Fals
 
 def ridge_regression_glv(X, U, T, r_A, r_g, r_B):
     """Computes estimates of A, g, and B using least squares to solve
-    the Composition LV differential equation. 
+    the Composition LV differential equation.
 
     Parameters
     ----------
@@ -330,19 +333,19 @@ def ridge_regression_glv(X, U, T, r_A, r_g, r_B):
         for t in range(1, xi.shape[0]):
             pt = np.exp(xi[t])
             pt0  = np.exp(xi[t-1])
-            
+
             xt  = xi[t]
             xt0 = xi[t-1]
-            
+
             gt0 = np.ones(1)
             ut0 = ui[t-1]
-            
+
             pgu = np.concatenate((pt0, gt0, ut0))
-            
+
             delT = T[idx][t] - T[idx][t-1]
             AgB_term1 += np.outer( (xt - xt0) / delT, pgu)
             AgB_term2 += np.outer(pgu, pgu)
-    
+
     reg = np.array([r_A for i in range(pDim)] + [r_g] + [r_B for i in range(uDim)])
     reg = np.diag(reg)
     AgB = AgB_term1.dot(np.linalg.pinv(AgB_term2 + reg))
