@@ -71,7 +71,7 @@ def compute_errors_by_time(Y, Y_pred):
     return error_by_time
 
 
-def fit_model(Y, U, T, model, savepath, n_subjects, regression_type="elastic-net"):
+def fit_model(Y, U, T, model, savepath, scale, n_subjects, regression_type="elastic-net"):
 
     models = ["clv", "alr", "lra", "glv", "glv-ra"]
     if model not in models:
@@ -109,7 +109,8 @@ def fit_model(Y, U, T, model, savepath, n_subjects, regression_type="elastic-net
             try:
                 pred_alr = pkl.load(open(parameter_filename / "alr", "rb"))
             except FileNotFoundError:
-                pred_alr = fit_linear_alr(train_Y, train_T, train_U, test_Y, test_T, test_U,
+                pred_alr = fit_linear_alr(train_Y, train_T, train_U, test_Y,
+                    test_T, test_U,
                   save_name=parameter_filename / "alr-model.pkl")
                 #pkl.dump(pred_alr, open(parameter_filename + "-alr", "wb"))
                 #print("saved: " + parameter_filename + " " + model)
@@ -118,7 +119,8 @@ def fit_model(Y, U, T, model, savepath, n_subjects, regression_type="elastic-net
             try:
                 pred_lra = pkl.load(open(parameter_filename / "lra", "rb"))
             except FileNotFoundError:
-                pred_lra = fit_linear_rel_abun(train_Y, train_T, train_U, test_Y, test_T, test_U,
+                pred_lra = fit_linear_rel_abun(train_Y, train_T, train_U, test_Y,
+                   test_T, test_U,
                    save_name=parameter_filename / "lra-model.pkl")
                 #pkl.dump(pred_lra, open(parameter_filename + "-lra", "wb"))
                 #print("saved: " + parameter_filename + " " + model)
@@ -128,7 +130,8 @@ def fit_model(Y, U, T, model, savepath, n_subjects, regression_type="elastic-net
                 try:
                     pred_glv = pkl.load(open(parameter_filename / "glv-ridge", "rb"))
                 except FileNotFoundError:
-                    pred_glv = fit_glv_ridge(train_Y, train_T, train_U, test_Y, test_T, test_U,
+                    pred_glv = fit_glv_ridge(train_Y, train_T, train_U, test_Y,
+                        test_T, test_U, scale=scale,
                         save_name=parameter_filename / "glv-ridge-model.pkl")
                 #pkl.dump(pred_glv, open(parameter_filename + "-glv-ridge", "wb"))
                 #print("saved: " + parameter_filename + " " + model)
@@ -136,28 +139,31 @@ def fit_model(Y, U, T, model, savepath, n_subjects, regression_type="elastic-net
                 try:
                     pred_glv = pkl.load(open(parameter_filename / "glv-elastic-net", "rb"))
                 except FileNotFoundError:
-                    pred_glv = fit_glv(train_Y, train_T, train_U, test_Y, test_T, test_U,
+                    pred_glv = fit_glv(train_Y, train_T, train_U, test_Y, test_T,
+                        test_U, scale=scale,
                         save_name=parameter_filename / "glv-elastic-net-model.pkl")
         elif model == "glv-ra":
             if regression_type == "ridge":
                 try:
                     pred_glv_ra = pkl.load(open(parameter_filename / "glv-ra-ridge", "rb"))
                 except FileNotFoundError:
-                    pred_glv_ra = fit_glv_ridge(train_Y, train_T, train_U, test_Y, test_T, test_U,
-                        use_rel_abun=True,
+                    pred_glv_ra = fit_glv_ridge(train_Y, train_T, train_U, test_Y,
+                        test_T, test_U, use_rel_abun=True,
                         save_name=parameter_filename / "glv-ra-model.pkl")
             else:
                 try:
                     pred_glv_ra = pkl.load(open(parameter_filename / "glv-ra-elastic-net", "rb"))
                 except FileNotFoundError:
-                    pred_glv_ra = fit_glv(train_Y, train_T, train_U, test_Y, test_T, test_U,
-                        use_rel_abun=True,
+                    pred_glv_ra = fit_glv(train_Y, train_T, train_U, test_Y, test_T,
+                        test_U, use_rel_abun=True,
                         save_name=parameter_filename / "glv-ra-elastic-net-model.pkl")
                     #pkl.dump(pred_glv_ra, open(parameter_filename + "-glv-ra", "wb"))
                     #print("saved: " + parameter_filename + " " + model)
 
 
 def adjust_concentrations(Y):
+    """adjust the concentrations for stability purposes"""
+
     con =  []
     for y in Y:
         con += y.sum(axis=1).tolist()
@@ -168,7 +174,7 @@ def adjust_concentrations(Y):
     for y in Y:
         Y_adjusted.append(C*y)
 
-    return Y_adjusted
+    return Y_adjusted, C
 
 
 def add_limit_detection(X, lim=1e5):
@@ -192,7 +198,8 @@ if __name__ == "__main__":
     T = pkl.load(open(input_files_path / "T.pkl", "rb"))
 
     Y_corrected = add_limit_detection(Y, args.limit_of_detection)
-    Y_adj = adjust_concentrations(Y_corrected)  # denoise Y
+    Y_adj, scale = adjust_concentrations(Y_corrected)  # denoise Y
 
     model = args.model
-    fit_model(Y_adj, U, T, model, Path(args.output_loc), n_subjects=len(Y), regression_type=args.regression)
+    fit_model(Y_adj, U, T, model, Path(args.output_loc), sc, n_subjects=len(Y),
+        regression_type=args.regression)

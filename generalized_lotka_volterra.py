@@ -56,7 +56,7 @@ class GeneralizedLotkaVolterra:
     """Inference for compositional Lotka-Volterra.
     """
 
-    def __init__(self, C=None, T=None, U=None, denom_ids=None, pseudo_count=1e-3):
+    def __init__(self, C=None, T=None, U=None, scale=1, denom_ids=None, pseudo_count=1e-3):
         """
         Parameters
         ----------
@@ -71,6 +71,7 @@ class GeneralizedLotkaVolterra:
         """
         self.C = C
         self.T = T
+        self.scale=scale
         self.pseudo_count = pseudo_count
         if C is not None:
             self.X = construct_log_concentrations(C, pseudo_count)
@@ -119,6 +120,7 @@ class GeneralizedLotkaVolterra:
         if verbose:
             print("Estimating model parameters...")
         self.A, self.g, self.B = elastic_net_glv(self.X, self.U, self.T, self.Q_inv, self.alpha, self.r_A, self.r_g, self.r_B)
+        self.A = self.A * self.scale
 
         if verbose:
             print()
@@ -129,10 +131,11 @@ class GeneralizedLotkaVolterra:
         self.r_A = r_A
         self.r_g = r_g
         self.r_B = r_B
-        
+
         if verbose:
             print("Estimating model parameters...")
         self.A, self.g, self.B = ridge_regression_glv(self.X, self.U, self.T, r_A, r_g, r_B)
+        self.A = self.A * self.scale
 
         if verbose:
             print()
@@ -491,7 +494,7 @@ def predict(x, u, times, A, g, B):
         dt = times[i] - times[i-1]
         ivp = solve_ivp(grad, (0,0+dt), xt, method="RK45")
         xt = ivp.y[:,-1]
-        pt = compute_rel_abun(xt).flatten()
+        pt = np.exp(xt).flatten()
         p_pred[i] = pt
     return p_pred
 
@@ -506,7 +509,7 @@ def compute_prediction_error(X, U, T, A, g, B):
     for x, u, t in zip(X, U, T):
         try:
             p_pred = predict(x, u, t, A, g, B)
-            err += compute_err(compute_rel_abun(x), p_pred)
+            err += compute_err(np.exp(x), p_pred)
         except TimeoutError:
             err += np.inf
     return err/len(X)

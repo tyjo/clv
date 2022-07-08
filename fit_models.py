@@ -40,7 +40,7 @@ def fit_clv(observations, time_points, effects, held_out_observations, held_out_
 
 
 def fit_glv(observations, time_points, effects, held_out_observations, held_out_time_points, held_out_effects,
-        use_rel_abun=False, folds=None, save_name=None):
+        scale=1, use_rel_abun=False, folds=None, save_name=None):
 
     print("Checker\nTraining Size: {}, Testing Size: {}".format(
         len(observations), len(held_out_observations)))
@@ -59,8 +59,10 @@ def fit_glv(observations, time_points, effects, held_out_observations, held_out_
         for obs in held_out_observations:
             held_out_rel_abun.append(obs / obs.sum(axis=1,keepdims=True))
         held_out_observations = held_out_rel_abun
+        scale=1
 
-    glv = GeneralizedLotkaVolterra(observations, time_points, effects)
+    glv = GeneralizedLotkaVolterra(observations, time_points, effects, scale=scale)
+    print("scale:", scale)
     glv.train(folds=folds)
     A, g, B = glv.get_params()
 
@@ -73,7 +75,7 @@ def fit_glv(observations, time_points, effects, held_out_observations, held_out_
     return []
 
 def fit_glv_ridge(observations, time_points, effects, held_out_observations, held_out_time_points,
-        held_out_effects, use_rel_abun=False, folds=None, save_name=None):
+        held_out_effects, scale, use_rel_abun=False, folds=None, save_name=None):
     print("Checker\nTraining Size: {}, Testing Size: {}".format(
         len(observations), len(held_out_observations)))
     if folds is None:
@@ -91,8 +93,10 @@ def fit_glv_ridge(observations, time_points, effects, held_out_observations, hel
         for obs in held_out_observations:
             held_out_rel_abun.append(obs / obs.sum(axis=1,keepdims=True))
         held_out_observations = held_out_rel_abun
+        scale=1
 
-    glv = GeneralizedLotkaVolterra(observations, time_points, effects)
+    glv = GeneralizedLotkaVolterra(observations, time_points, effects, scale=scale)
+    print("scale:", scale)
     glv.train_ridge(folds=folds)
     A, g, B = glv.get_params()
 
