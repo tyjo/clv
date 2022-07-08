@@ -28,6 +28,8 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--model', type=str, help='Name of the model')
     parser.add_argument("-r", "--regression", type=str, help="Type of regression to use")
+    parser.add_argument("-l", "--limit_of_detection", type=float,
+                        help="The limit of detection. Any initial abundance <= this value gets set to this value.")
     parser.add_argument("-o", "--output_loc",
         help="Location of the folder where the output is saved")
     parser.add_argument("-i", "--input_loc",
@@ -176,7 +178,7 @@ def add_limit_detection(X, lim=1e5):
     new_X =[]
 
     for x in X_:
-        new_X.append(np.where(x==0, lim, x))
+        new_X.append(np.where(x <= 0, lim, x))
 
     return new_X
 
@@ -188,9 +190,8 @@ if __name__ == "__main__":
     U = pkl.load(open(input_files_path / "U.pkl", "rb"))
     T = pkl.load(open(input_files_path / "T.pkl", "rb"))
 
-    Y_corrected = add_limit_detection(Y)
-    Y_adj = adjust_concentrations(Y_corrected) #denoise Y
+    Y_corrected = add_limit_detection(Y, args.limit_of_detection)
+    Y_adj = adjust_concentrations(Y_corrected)  # denoise Y
 
     model = args.model
-
     fit_model(Y_adj, U, T, model, Path(args.output_loc), n_subjects=len(Y), regression_type=args.regression)
