@@ -173,6 +173,7 @@ def adjust_concentrations(Y):
 
 def add_limit_detection(X, lim=1e5):
     """adjust the 0 concentration values"""
+    print(f"Using limit of detection value `{lim}`.")
 
     X_ = copy.deepcopy(X)
     new_X =[]
