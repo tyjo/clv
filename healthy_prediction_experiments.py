@@ -185,7 +185,7 @@ def add_limit_detection(X, lim=1e5):
     new_X =[]
 
     for x in X_:
-        new_X.append(np.where(x <= 0, lim, x))
+        new_X.append(np.where(x <= lim, lim, x))
 
     return new_X
 
