@@ -201,5 +201,5 @@ if __name__ == "__main__":
     Y_adj, scale = adjust_concentrations(Y_corrected)  # denoise Y
 
     model = args.model
-    fit_model(Y_adj, U, T, model, Path(args.output_loc), sc, n_subjects=len(Y),
-        regression_type=args.regression)
+    fit_model(Y_adj, U, T, model, Path(args.output_loc), scale, n_subjects=len(Y),
+              regression_type=args.regression)
