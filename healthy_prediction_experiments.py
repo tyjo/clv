@@ -130,9 +130,12 @@ def fit_model(Y, U, T, model, savepath, scale, n_subjects, regression_type="elas
                 try:
                     pred_glv = pkl.load(open(parameter_filename / "glv-ridge", "rb"))
                 except FileNotFoundError:
-                    pred_glv = fit_glv_ridge(train_Y, train_T, train_U, test_Y,
-                        test_T, test_U, scale=scale,
-                        save_name=parameter_filename / "glv-ridge-model.pkl")
+                    pred_glv = fit_glv_ridge(
+                        train_Y, train_T, train_U, test_Y,
+                        test_T, test_U,
+                        scale=scale,
+                        save_name=parameter_filename / "glv-ridge-model.pkl"
+                    )
                 #pkl.dump(pred_glv, open(parameter_filename + "-glv-ridge", "wb"))
                 #print("saved: " + parameter_filename + " " + model)
             else:
@@ -147,9 +150,13 @@ def fit_model(Y, U, T, model, savepath, scale, n_subjects, regression_type="elas
                 try:
                     pred_glv_ra = pkl.load(open(parameter_filename / "glv-ra-ridge", "rb"))
                 except FileNotFoundError:
-                    pred_glv_ra = fit_glv_ridge(train_Y, train_T, train_U, test_Y,
-                        test_T, test_U, use_rel_abun=True,
-                        save_name=parameter_filename / "glv-ra-model.pkl")
+                    pred_glv_ra = fit_glv_ridge(
+                        train_Y, train_T, train_U, test_Y,
+                        test_T, test_U,
+                        scale=scale,
+                        use_rel_abun=True,
+                        save_name=parameter_filename / "glv-ra-model.pkl"
+                    )
             else:
                 try:
                     pred_glv_ra = pkl.load(open(parameter_filename / "glv-ra-elastic-net", "rb"))
