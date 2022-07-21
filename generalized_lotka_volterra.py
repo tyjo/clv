@@ -56,7 +56,8 @@ class GeneralizedLotkaVolterra:
     """Inference for compositional Lotka-Volterra.
     """
 
-    def __init__(self, C=None, T=None, U=None, scale=1, denom_ids=None, pseudo_count=1e-3):
+    def __init__(self, C=None, T=None, U=None, scale=1, denom_ids=None, pseudo_count=1e-3,
+                 convert_to_rel=False):
         """
         Parameters
         ----------
@@ -71,8 +72,11 @@ class GeneralizedLotkaVolterra:
         """
         self.C = C
         self.T = T
-        self.scale=scale
+        self.scale = scale
         self.pseudo_count = pseudo_count
+        self.convert_to_rel = convert_to_rel # whether or not to convert rel
+
+        print("Using pseudo-count: {}".format(pseudo_count))
         if C is not None:
             self.X = construct_log_concentrations(C, pseudo_count)
         else:
@@ -115,7 +119,9 @@ class GeneralizedLotkaVolterra:
         if self.alpha is None or self.r_A is None or self.r_g is None or self.r_B is None:
             if verbose:
                 print("Estimating regularizers...")
-            self.alpha, self.r_A, self.r_g, self.r_B = estimate_elastic_net_regularizers_cv(self.X, self.U, self.T, folds=folds, no_effects=self.no_effects, verbose=verbose)
+            self.alpha, self.r_A, self.r_g, self.r_B = estimate_elastic_net_regularizers_cv(self.X,
+                                                      self.U, self.T, folds=folds, no_effects=self.no_effects,
+                                                      verbose=verbose, convert_to_rel=self.convert_to_rel)
 
         if verbose:
             print("Estimating model parameters...")
@@ -127,7 +133,8 @@ class GeneralizedLotkaVolterra:
 
 
     def train_ridge(self, verbose=False, folds=10):
-        r_A, r_g, r_B = estimate_ridge_regularizers_cv(self.X, self.U, self.T, folds=folds, no_effects=self.no_effects, verbose=verbose)
+        r_A, r_g, r_B = estimate_ridge_regularizers_cv(self.X, self.U, self.T, folds=folds,
+                                no_effects=self.no_effects, verbose=verbose, convert_to_rel=self.convert_to_rel)
         self.r_A = r_A
         self.r_g = r_g
         self.r_B = r_B
@@ -166,7 +173,7 @@ class GeneralizedLotkaVolterra:
         X = construct_log_concentrations([c0])
         x = X[0]
 
-        return predict(x, u, times, self.A, self.g, self.B)
+        return predict(x, u, times, self.A, self.g, self.B, self.convert_to_rel)
 
 
     def get_params(self):
@@ -359,7 +366,8 @@ def ridge_regression_glv(X, U, T, r_A, r_g, r_B):
     return A, g, B
 
 
-def estimate_elastic_net_regularizers_cv(X, U, T, folds, no_effects=False, verbose=False):
+def estimate_elastic_net_regularizers_cv(X, U, T, folds, no_effects=False, verbose=False,
+                convert_to_rel=False):
     if len(X) == 1:
         print("Error: cannot estimate regularization parameters from single sample", file=sys.stderr)
         exit(1)
@@ -406,7 +414,7 @@ def estimate_elastic_net_regularizers_cv(X, U, T, folds, no_effects=False, verbo
 
             Q_inv = np.eye(train_X[0].shape[1])
             A, g, B = elastic_net_glv(train_X, train_U, train_T, Q_inv, alpha, r_A, r_g, r_B, tol=1e-3)
-            sqr_err += compute_prediction_error(test_X, test_U, test_T, A, g, B)
+            sqr_err += compute_prediction_error(test_X, test_U, test_T, A, g, B, convert_to_rel)
 
         if sqr_err < best_sqr_err:
             best_r = (alpha, r_A, r_g, r_B)
@@ -416,7 +424,8 @@ def estimate_elastic_net_regularizers_cv(X, U, T, folds, no_effects=False, verbo
     return best_r
 
 
-def estimate_ridge_regularizers_cv(X, U, T, folds, no_effects=False, verbose=False):
+def estimate_ridge_regularizers_cv(X, U, T, folds, no_effects=False, verbose=False,
+                                  convert_to_rel=False):
     if len(X) == 1:
         print("Error: cannot estimate regularization parameters from single sample", file=sys.stderr)
         exit(1)
@@ -460,7 +469,7 @@ def estimate_ridge_regularizers_cv(X, U, T, folds, no_effects=False, verbose=Fal
 
             Q_inv = np.eye(train_X[0].shape[1])
             A, g, B = ridge_regression_glv(train_X, train_U, train_T, r_A, r_g, r_B)
-            sqr_err += compute_prediction_error(test_X, test_U, test_T, A, g, B)
+            sqr_err += compute_prediction_error(test_X, test_U, test_T, A, g, B, convert_to_rel)
 
         if sqr_err < best_sqr_err:
             best_r = (r_A, r_g, r_B)
@@ -478,7 +487,7 @@ def compute_rel_abun(x):
 
 
 @timeout(5)
-def predict(x, u, times, A, g, B):
+def predict(x, u, times, A, g, B, convert_rel):
     """Make predictions from initial conditions
     """
     def grad_fn(A, g, B, u):
@@ -495,11 +504,13 @@ def predict(x, u, times, A, g, B):
         ivp = solve_ivp(grad, (0,0+dt), xt, method="RK45")
         xt = ivp.y[:,-1]
         pt = np.exp(xt).flatten()
+        if convert_rel:
+            pt = compute_rel_abun(xt).flatten()
         p_pred[i] = pt
     return p_pred
 
 
-def compute_prediction_error(X, U, T, A, g, B):
+def compute_prediction_error(X, U, T, A, g, B, convert_rel):
     def compute_err(p, p_pred):
         err = 0
         ntaxa = p.shape[1]
@@ -508,8 +519,11 @@ def compute_prediction_error(X, U, T, A, g, B):
     err = 0
     for x, u, t in zip(X, U, T):
         try:
-            p_pred = predict(x, u, t, A, g, B)
-            err += compute_err(np.exp(x), p_pred)
+            p_pred = predict(x, u, t, A, g, B, convert_rel)
+            if convert_rel:
+                err += compute_err(compute_rel_abun(x), p_pred)
+            else:
+                err += compute_err(np.exp(x), p_pred)
         except TimeoutError:
             err += np.inf
     return err/len(X)

@@ -1,5 +1,6 @@
 import numpy as np
 import pickle as pkl
+import logging
 
 from compositional_lotka_volterra import CompositionalLotkaVolterra
 from generalized_lotka_volterra import GeneralizedLotkaVolterra
@@ -7,10 +8,11 @@ from linear_alr import LinearALR
 from linear_rel_abun import LinearRelAbun
 
 def fit_clv(observations, time_points, effects, held_out_observations, held_out_time_points,
-        held_out_effects, using_rel_abun=False, ret_params=False, folds=None, save_name=None):
+        held_out_effects, pseudo_count=1e-6, using_rel_abun=False, ret_params=False, folds=None, save_name=None):
     # if observations are concentrations
     print("Checker\nTraining Size: {}, Testing Size: {}".format(
         len(observations), len(held_out_observations)))
+    logging.debug("Running cLV")
     rel_abun = []
     held_out_rel_abun = []
 
@@ -28,7 +30,8 @@ def fit_clv(observations, time_points, effects, held_out_observations, held_out_
         rel_abun = observations
         held_out_rel_abun = held_out_observations
 
-    clv = CompositionalLotkaVolterra(rel_abun, time_points, effects)
+    clv = CompositionalLotkaVolterra(rel_abun, time_points, effects,
+                     pseudo_count=pseudo_count)
     clv.train(folds=folds)
     if save_name is not None:
         print("Saving model to: {}".format(save_name))
@@ -40,10 +43,11 @@ def fit_clv(observations, time_points, effects, held_out_observations, held_out_
 
 
 def fit_glv(observations, time_points, effects, held_out_observations, held_out_time_points, held_out_effects,
-        scale=1, use_rel_abun=False, folds=None, save_name=None):
+        scale=1, pseudo_count=1e-6, use_rel_abun=False, folds=None, save_name=None):
 
     print("Checker\nTraining Size: {}, Testing Size: {}".format(
         len(observations), len(held_out_observations)))
+    logging.debug("Running gLV elastic net")
     if folds is None:
         folds = len(observations)
 
@@ -61,7 +65,8 @@ def fit_glv(observations, time_points, effects, held_out_observations, held_out_
         held_out_observations = held_out_rel_abun
         scale=1
 
-    glv = GeneralizedLotkaVolterra(observations, time_points, effects, scale=scale)
+    glv = GeneralizedLotkaVolterra(observations, time_points, effects, scale=scale,
+          pseudo_count=pseudo_count, convert_to_rel=use_rel_abun)
     print("scale:", scale)
     glv.train(folds=folds)
     A, g, B = glv.get_params()
@@ -75,9 +80,12 @@ def fit_glv(observations, time_points, effects, held_out_observations, held_out_
     return []
 
 def fit_glv_ridge(observations, time_points, effects, held_out_observations, held_out_time_points,
-        held_out_effects, scale, use_rel_abun=False, folds=None, save_name=None):
+        held_out_effects, scale=1, pseudo_count=1e-6, use_rel_abun=False, folds=None, save_name=None):
+
     print("Checker\nTraining Size: {}, Testing Size: {}".format(
         len(observations), len(held_out_observations)))
+
+    logging.debug("Running gLV, ridge")
     if folds is None:
         folds = len(observations)
 
@@ -95,7 +103,8 @@ def fit_glv_ridge(observations, time_points, effects, held_out_observations, hel
         held_out_observations = held_out_rel_abun
         scale=1
 
-    glv = GeneralizedLotkaVolterra(observations, time_points, effects, scale=scale)
+    glv = GeneralizedLotkaVolterra(observations, time_points, effects, scale=scale,
+        pseudo_count=pseudo_count, convert_to_rel=use_rel_abun)
     print("scale:", scale)
     glv.train_ridge(folds=folds)
     A, g, B = glv.get_params()
@@ -146,10 +155,12 @@ def fit_linear_alr(observations, time_points, effects, held_out_observations, he
 
 
 def fit_linear_rel_abun(observations, time_points, effects, held_out_observations, held_out_time_points,
-    held_out_effects, using_rel_abun=False, folds=None, save_name=None):
+    held_out_effects, pseudo_count=1e-6, using_rel_abun=False, folds=None, save_name=None):
 
     print("Checker\nTraining Size: {}, Testing Size: {}".format(
         len(observations), len(held_out_observations)))
+
+    logging.debug("Running LRA")
     if folds is None:
         folds = len(observations)
 
@@ -168,7 +179,7 @@ def fit_linear_rel_abun(observations, time_points, effects, held_out_observation
         rel_abun = observations
         held_out_rel_abun = held_out_observations
 
-    lra = LinearRelAbun(rel_abun, time_points, effects)
+    lra = LinearRelAbun(rel_abun, time_points, effects, pseudo_count=pseudo_count)
     lra.train(folds=folds)
     A, g, B = lra.get_params()
 

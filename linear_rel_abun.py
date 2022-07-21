@@ -35,7 +35,7 @@ class LinearRelAbun:
     """Inference for the linear model using relative abundances
     """
 
-    def __init__(self, P=None, T=None, U=None):
+    def __init__(self, P=None, T=None, U=None, pseudo_count=1e-6):
         """
         Parameters
         ----------
@@ -47,7 +47,8 @@ class LinearRelAbun:
                 perturbations for each x.
         """
         self.P = P
-        #self.P = estimate_relative_abundances(P)
+        self.pseudo_count = pseudo_count
+        #self.P = estimate_relative_abundances(P, self.pseudo_count)
         self.T = T
 
         if U is None and self.P is not None:

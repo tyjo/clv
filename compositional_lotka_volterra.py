@@ -99,6 +99,8 @@ class CompositionalLotkaVolterra:
         """
         self.P = P
         self.T = T
+        self.pseudo_count = pseudo_count
+        print("Using pseudo-count: {}".format(pseudo_count))
 
         if P is not None and denom is None:
             self.denom = choose_denom(P)
